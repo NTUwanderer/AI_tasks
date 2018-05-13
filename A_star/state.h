@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <vector>
+#include <math.h>
 #include "zkey.h"
 #include "step.h"
 
@@ -28,7 +29,7 @@ struct State {
 } goalState;
 
 bool operator< (const State& s1, const State& s2) {
-    return s1.f < s2.f;
+    return s1.f > s2.f;
 }
 
 bool operator== (const State& s1, const State& s2) {
@@ -45,15 +46,50 @@ bool operator!= (const State& s1, const State& s2) {
     return !(s1 == s2);
 }
 
+int findPos(State s, int n) {
+    for (int i = 0; i < 9; ++i) {
+        if (s.pos[i] == n) {
+            return i;
+        }
+    }
+
+    return 0;
+}
+
 int heuristic(State s) {
     int h = 0;
+    /*
     for (int i = 0; i < 9; ++i) {
         if (s.pos[i] != goalState.pos[i]) {
             ++h;
         }
     }
+    */
+    for (int i = 0; i < 9; ++i) {
+        int p1 = findPos(s, i);
+        int p2 = findPos(goalState, i);
+
+        h += (abs(p1/3 - p2/3) + abs(p1%3 - p2%3));
+    }
+    h /= 2;
+
 
     return h;
+}
+
+bool solvable(State s) {
+    int inversion = 0;
+    for (int i = 1; i < 9; ++i) {
+        if (s.pos[i] == 0)
+            continue;
+        for (int j = 0; j < i; ++j) {
+            if (s.pos[i] < s.pos[j])
+                ++inversion;
+        }
+
+    }
+
+    return (inversion % 2 == 0);
 }
 
 State randomState() {
@@ -62,7 +98,9 @@ State randomState() {
         s.pos[i] = i;
     }
 
-    shuffle(s.pos, 9);
+    do {
+        shuffle(s.pos, 9);
+    } while (!solvable(s));
     s.g = 0;
     s.h = heuristic(s);
     s.f = s.g + s.h;
@@ -76,7 +114,7 @@ void printState(State s) {
         if ((i + 1) % 3 == 0)
             printf ("\n");
     }
-    printf ("heuristic: %i\n", heuristic(s));
+    printf ("g: %i, h: %i, f: %i, heu: %i\n", s.g, s.h, s.f, heuristic(s));
 }
 
 unsigned long getKey(State s) {
@@ -102,7 +140,7 @@ State takeStep(State s, Step step, bool reverse = false) {
     return newS;
 }
 
-void getAvailableSteps(State s, vector<Step> steps) {
+void getAvailableSteps(State s, vector<Step>& steps) {
     int p = 0;
     for (int i = 0; i < 9; ++i) {
         if (s.pos[i] == 0) {

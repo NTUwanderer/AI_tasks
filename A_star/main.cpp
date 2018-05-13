@@ -17,13 +17,15 @@ typedef unordered_map<unsigned long, int>  HeuMap;
 
 using namespace std;
 
-void A_star_search(State initState, int cutoff, vector<Step>& steps) {
+int A_star_search(State initState, int cutoff, vector<Step>& steps) {
     myQueue<State> queue;
     queue.push(initState);
     StepMap prevStep;
-    HeuMap explored; // key to heuristic
-    HeuMap frontier; // key to heuristic
+    HeuMap explored; // key to heuristic f
+    HeuMap frontier; // key to heuristic f
+    frontier[getKey(initState)] = initState.f;
 
+    int count = 1;
     while (!(queue.empty())) {
         State s = queue.top();
         queue.pop();
@@ -37,9 +39,10 @@ void A_star_search(State initState, int cutoff, vector<Step>& steps) {
                 Step step = prevStep[key];
                 steps.push_back(step);
                 s = takeStep(s, step, true);
+                key = getKey(s);
             }
             reverse(steps.begin(), steps.end());
-            break;
+            return count;
         }
 
         vector<Step> avSteps;
@@ -60,16 +63,20 @@ void A_star_search(State initState, int cutoff, vector<Step>& steps) {
                     queue.push(successor);
                 }
             } else {
+                ++count;
                 prevStep[key] = step;
                 frontier[key] = successor.f;
                 queue.push(successor);
             }
         }
     }
+
+    return count;
 }
 
 int main() {
     srand(time(NULL));
+    // srand(2);
     for (int i = 1; i <= 8; ++i) {
         goalState.pos[i-1] = i;
     }
@@ -85,14 +92,18 @@ int main() {
     vector<Step> steps;
     int cutoff = INT_MAX;
     while (true) {
-        A_star_search(initState, cutoff, steps);
+        int count = A_star_search(initState, cutoff, steps);
 
+        printf ("count: %i, step size: %i\n", count, steps.size());
         State s = initState;
         for (int i = 0; i < steps.size(); ++i) {
             s = takeStep(s, steps[i]);
-            printState(s);
-            cin.get();
+            // printState(s);
         }
+        if (s == goalState)
+            printf ("Success!\n");
+        else
+            printf ("Fail!\n");
 
         break;
     }

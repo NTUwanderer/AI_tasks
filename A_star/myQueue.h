@@ -22,6 +22,7 @@ public:
         for (auto it = this->c.begin(); it != this->c.end(); ++it) {
             if (*it == value) {
                 this->c.erase(it);
+                std::make_heap(this->c.begin(), this->c.end(), this->comp);
                 return true;
             }
         }
