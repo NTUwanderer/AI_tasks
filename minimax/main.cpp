@@ -72,11 +72,10 @@ int minimax(State& s, const bool (&available)[8][8], bool blackTurn, int depth, 
             }
         }
     }
-
     if (bestX == -1) {
         State newS = s;
         availablePlaces(newS, newAvailable, !blackTurn);
-        bestHeu = minimax(s, available, !blackTurn, depth - 1);
+        bestHeu = minimax(newS, newAvailable, !blackTurn, depth - 1);
     } else {
         s = takeStep(s, bestX, bestY, blackTurn);
     }
@@ -104,19 +103,20 @@ int main() {
     bool blackTurn = (mode != 2);
 
     bool available[8][8];
-    int depth = 5;
+    int depth = 10;
+
+    char c;
 
     while (!isEnd(s)) {
         printState(s);
 
-        if (availablePlaces(s, available, blackTurn) == 0) {
-            blackTurn = !blackTurn;
-        } else {
+        if (availablePlaces(s, available, blackTurn) != 0) {
             if (blackTurn && playerMode)
                 playerMove(s, available);
 
-            else
+            else {
                 minimax(s, available, blackTurn, depth);
+            }
         }
 
 

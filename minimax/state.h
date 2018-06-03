@@ -120,7 +120,7 @@ bool isEnd(const State& s) {
     return (blackMoves == 0 && whiteMoves == 0);
 }
 
-void printState(State s) {
+void printState(State& s) {
 
     printf ("  a b c d e f g h\n");
     for (int i = 0; i < 8; ++i) {

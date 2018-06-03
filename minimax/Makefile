@@ -1,6 +1,6 @@
 CXX = g++
-CXXFLAGS = -O0 -g -std=c++11
-#CXXFLAGS = -O2 -g -std=c++11
+#CXXFLAGS = -O0 -g -std=c++11
+CXXFLAGS = -O2 -g -std=c++11
 
 .SUFFIXES: .cpp
 .o :
