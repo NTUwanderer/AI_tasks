@@ -28,20 +28,6 @@ struct State {
     int h;
     int f;
 
-    /*
-    State& operator= (const State& s) {
-        for (int i = 0; i < 9; ++i) {
-            pos[i] = s.pos[i];
-        }
-    
-        g = s.g;
-        h = s.h;
-        f = s.f;
-    
-        return *this;
-    }
-    */
-
 } goalState;
 
 bool operator< (const State& s1, const State& s2) {
@@ -61,6 +47,22 @@ bool operator== (const State& s1, const State& s2) {
 bool operator!= (const State& s1, const State& s2) {
     return !(s1 == s2);
 }
+
+int findPos(State s, int n);
+int heuristic(State s);
+bool solvable(State s);
+State randomStepState(int step);
+State randomState();
+void drawHorizontalLine(int y);
+void drawVerticalLine(int x);
+char* myToChars(int i);
+char* myToChars_six(int i);
+void printNumber(State s, int index);
+void printState(State s);
+void getAvailableSteps(State s, vector<Step>& steps);
+bool getLegalStep(State s, int index, Step& step);
+unsigned long getKey(State s);
+State takeStep(State s, Step step, bool reverse = false);
 
 int findPos(State s, int n) {
     for (int i = 0; i < 9; ++i) {
@@ -108,17 +110,34 @@ bool solvable(State s) {
     return (inversion % 2 == 0);
 }
 
+State randomStepState(int step) {
+    State s = goalState;
+
+    do {
+        for (int i = 0; i < step; ++i) {
+            vector<Step> steps;
+            getAvailableSteps(s, steps);
+
+            size_t j = rand() / (RAND_MAX / steps.size() + 1);
+            s = takeStep(s, steps[j]);
+        }
+    } while (s == goalState);
+    s.g = 0;
+    s.h = heuristic(s);
+    s.f = s.g + s.h;
+
+    return s;
+}
+
 State randomState() {
     State s;
-    for (int i = 0; i < 7; ++i) {
-        s.pos[i] = i+1;
+    for (int i = 0; i < 9; ++i) {
+        s.pos[i] = i;
     }
-    s.pos[7] = 0;
-    s.pos[8] = 8;
 
-    // do {
-    //     shuffle(s.pos, 9);
-    // } while (!solvable(s));
+    do {
+        shuffle(s.pos, 9);
+    } while (!solvable(s));
     s.g = 0;
     s.h = heuristic(s);
     s.f = s.g + s.h;
@@ -142,6 +161,19 @@ char* myToChars(int i) {
     char buffer [50];
     sprintf (buffer, "%3i", i);
     return buffer;
+}
+
+char* myToChars_six(int i) {
+    char buffer [50];
+    sprintf (buffer, "%6i", i);
+    return buffer;
+}
+
+void printNumber(State s, int index) {
+    int x = 105 + 20 + (index % 3) * 70;
+    int y = 25 + 20 + (index / 3) * 70;
+    tft.setCursor(x, y);
+    tft.print(num_str[s.pos[index]]);
 }
 
 void printState(State s) {
@@ -169,10 +201,7 @@ void printState(State s) {
     tft.setTextColor(BLUE);
     tft.setTextSize(6);
     for (int i = 0; i < 9; ++i) {
-        int x = 105 + 20 + (i % 3) * 70;
-        int y = 25 + 20 + (i / 3) * 70;
-        tft.setCursor(x, y);
-        tft.print(num_str[s.pos[i]]);
+        printNumber(s, i);
     }
 
     tft.setTextColor(CYAN);
@@ -201,7 +230,7 @@ unsigned long getKey(State s) {
     return key;
 }
 
-State takeStep(State s, Step step, bool reverse = false) {
+State takeStep(State s, Step step, bool reverse) {
     State newS = s;
     swap(newS.pos[step.p1], newS.pos[step.p2]);
 

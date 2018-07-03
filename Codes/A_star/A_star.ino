@@ -12,7 +12,6 @@
 #include "util.h"
 #include "state.h"
 #include "myQueue.h"
-#include "zkey.h"
 #include "buttonCoordinate.h"
 
 #define TOUCH_CS_PIN D3
@@ -46,21 +45,18 @@ Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
 extern uint8_t circle[];
 extern uint8_t x_bitmap[];
 
-enum GameState{startMode, playerMode, aStarMode, endMode};
-GameState gameState = startMode;
+typedef unordered_map<unsigned long, Step> StepMap;
+typedef unordered_map<unsigned long, int>  HeuMap;
 
-int gameScreen = 1; // deprecated
-int moves = 1;
+enum GameState{startMode, playerMode, AStarMode, endMode};
+GameState gameState;
+
+ButtonCoordinate playerButton, giveupButton, AStarButton;
+ButtonCoordinate buttons[9];
+
+vector<Step> steps;
 State initState, currentState;
-
-int winner = 0;  //0 = Draw, 1 = Human, 2 = CPU, deprecated
-
-boolean buttonEnabled = true; // deprecated
-
-int board[]={0,0,0,0,0,0,0,0,0};// holds position data 0 is blank, 1 human, 2 is computer, deprecated
-
-buttonCoordinate playerButton, AStarButton;
-buttonCoordinate buttons[9];
+int countAStar;
 
 void setup() {
     pinMode(BL_LED,OUTPUT);
@@ -81,7 +77,7 @@ void setup() {
 
 void loop() {
     boolean istouched = ts.touched();
-    if (istouched) {
+    if (istouched || gameState == AStarMode) {
         istouched = false;
         TS_Point p0 = ts.getPoint(),p;  //Get touch point
 
@@ -95,63 +91,120 @@ void loop() {
         if (gameState == startMode) {
             if (playerButton.pressed(p.x, p.y)) {
                 gameState = playerMode;
-                resetGame();    
+                resetGame();
                 printState(currentState);
+                drawGiveupButton();
+
+            } else if (AStarButton.pressed(p.x, p.y)) {
+                gameState = AStarMode;
+                resetGame();
+                printState(currentState);
+
+                tft.setTextColor(RED);
+                tft.setTextSize(2);
+                tft.setCursor(10, 165);
+                tft.print("Solving...");
+
+                int cutoff = INT_MAX;
+                countAStar = A_star_search(initState, cutoff, steps);
+
+                tft.setTextColor(BLUE);
+                tft.setCursor(10, 205);
+                tft.print("Solved.");
             }
         } else if (gameState == playerMode) {
-            int clickedIndex = -1;
-            for (int i = 0; i < 9; ++i) {
-                if (buttons[i].pressed(p.x, p.y)) {
-                    clickedIndex = i;
-                    tft.fillRect(buttons[i].x, buttons[i].y, buttons[i].width, buttons[i].height, RED);
-                    break;
+            if (giveupButton.pressed(p.x, p.y)) {
+                gameState = endMode;
+                drawGameOverScreen(-1);
+
+            } else {
+                int clickedIndex = -1;
+                for (int i = 0; i < 9; ++i) {
+                    if (buttons[i].pressed(p.x, p.y)) {
+                        clickedIndex = i;
+                        tft.fillRect(buttons[i].x, buttons[i].y, buttons[i].width, buttons[i].height, RED);
+                        tft.setTextColor(BLUE);
+                        tft.setTextSize(6);
+                        printNumber(currentState, i);
+                        break;
+                    }
+                }
+                delay(200);
+                Step step;
+                if (getLegalStep(currentState, clickedIndex, step)) {
+                    currentState = takeStep(currentState, step);
+                    printState(currentState);
+                } else {
+                    printState(currentState);
+                    
+                    tft.setTextColor(RED);
+                    tft.setTextSize(3);
+                    tft.setCursor(10, 150);
+                    tft.print("Error");
+                }
+
+                if (currentState == goalState) {
+                    delay(1000);
+                    gameState = endMode;
+                    drawGameOverScreen(currentState.g);
+                } else {
+                    drawGiveupButton();
                 }
             }
-            delay(200);
-            Step step;
-            if (getLegalStep(currentState, clickedIndex, step)) {
-                currentState = takeStep(currentState, step);
+        } else if (gameState == AStarMode) {
+            for (int i = 0; i < steps.size(); ++i) {
                 printState(currentState);
-            } else {
-                printState(currentState);
-                
-                tft.setTextColor(RED);
-                tft.setTextSize(3);
-                tft.setCursor(10, 165);
-                tft.print("Error");
-            }
+                delay(500);
 
-            if (currentState == goalState) {
-                delay(1000);
-                gameState = endMode;
-                drawGameOverScreen(currentState.g);
+                int p1 = steps[i].p1;
+                int p2 = steps[i].p2;
+                tft.fillRect(buttons[p1].x, buttons[p1].y, buttons[p1].width, buttons[p1].height, RED);
+                tft.fillRect(buttons[p2].x, buttons[p2].y, buttons[p2].width, buttons[p2].height, RED);
+                tft.setTextColor(BLUE);
+                tft.setTextSize(6);
+                printNumber(currentState, p1);
+                printNumber(currentState, p2);
+
+                currentState = takeStep(currentState, steps[i]);
+                delay(500);
             }
+            if (currentState == goalState) {
+                printState(currentState);
+                delay(500);
+                drawAStarGameOverScreen(currentState.g);
+            }
+            else
+                drawAStarGameOverScreen(INT_MAX);
+
+            gameState = endMode;
+
         } else if (gameState == endMode) {
             gameState = startMode;
             drawStartScreen();
+        } else {
+            Serial.println("Unknown GameState:");
+            Serial.println(gameState);
         }
 
-    
-        /*
-        if(p.x>60 && p.x<260 && p.y>180 && p.y<220 && buttonEnabled)// The user has pressed inside the red rectangle
-        {
-            buttonEnabled = false; //Disable button
-            Serial.println("Button Pressed");
-            resetGame();    
-            drawGameScreen();
-            playGame();
-        } 
-        */
         delay(10);  
     }
 }
 
+void drawGiveupButton() {
+    giveupButton.fillAndDraw(tft, RED, WHITE);
+    tft.setCursor(giveupButton.x + 5, giveupButton.y + 5);
+    tft.setTextColor(WHITE);
+    tft.setTextSize(2);
+    tft.print("Giveup");
+}
+
 void gameSetup() {
     gameState = startMode;
-    playerButton = buttonCoordinate(30,180,120,40);
-    AStarButton  = buttonCoordinate(170,180,120,40);
+    playerButton = ButtonCoordinate(30,180,120,40);
+    giveupButton = ButtonCoordinate(10,200,80,30);
+    AStarButton  = ButtonCoordinate(170,180,120,40);
     for (int i = 0; i < 9; ++i) {
-        buttons[i] = buttonCoordinate(110 + (i % 3) * 70, 30 + (i / 3) * 70, 65, 65);
+        buttons[i] = ButtonCoordinate(110 + (i % 3) * 70, 30 + (i / 3) * 70, 65, 65);
     }
 
     for (int i = 1; i <= 8; ++i) {
@@ -166,11 +219,13 @@ void gameSetup() {
 }
 
 void resetGame() {
-    moves = 0;
     do {
-        initState = randomState();
+        initState = randomStepState(30);
     } while (initState == goalState);
     currentState = initState;
+
+    countAStar = 0;
+    steps.clear();
 }
 
 void drawStartScreen()
@@ -246,6 +301,41 @@ void drawGameOverScreen(int moves) {
     //Draw frame
     tft.drawRect(0,0,319,240,WHITE);
 
+    if (moves >= 0) {
+        tft.setCursor(100,30);
+        tft.setTextColor(RED);
+        tft.setTextSize(3);
+        tft.print("You Won!");
+
+        tft.setCursor(10,100);
+        tft.setTextColor(WHITE);
+        tft.setTextSize(3);
+        tft.print("You Spent:");
+        tft.setCursor(10,130);
+        tft.print(" ");
+        tft.print(myToChars(moves));
+        tft.print(" Moves.");
+    } else {
+        tft.setCursor(40,100);
+        tft.setTextColor(RED);
+        tft.setTextSize(3);
+        tft.print("You Giveup QQ");
+
+    }
+    
+    tft.setCursor(50,220);
+    tft.setTextColor(BLUE);
+    tft.setTextSize(2);
+    tft.print("Click to Continue...");
+}
+
+void drawAStarGameOverScreen(int moves) {
+     
+    tft.fillScreen(BLACK);
+
+    //Draw frame
+    tft.drawRect(0,0,319,240,WHITE);
+
     tft.setCursor(100,30);
     tft.setTextColor(RED);
     tft.setTextSize(3);
@@ -254,9 +344,14 @@ void drawGameOverScreen(int moves) {
     tft.setCursor(10,100);
     tft.setTextColor(WHITE);
     tft.setTextSize(3);
-    tft.print("You Spent ");
+    tft.print("Move :   ");
     tft.print(myToChars(moves));
-    tft.print("\nMoves.");
+
+    tft.setCursor(10,140);
+    tft.setTextColor(WHITE);
+    tft.setTextSize(3);
+    tft.print("Model:");
+    tft.print(myToChars_six(countAStar));
     
     tft.setCursor(50,220);
     tft.setTextColor(BLUE);
@@ -275,231 +370,60 @@ void createPlayAgainButton()
     tft.print("Play Again");
 }
 
-void printBoard()
-{
-    int i=0;
-    Serial.println("Board: [");
-    for(i=0;i<9;i++)
-    {
-        Serial.print(board[i]);
-        Serial.print(",");
-    }
-    Serial.print("]");
-}
+int A_star_search(State initState, int cutoff, vector<Step>& steps) {
+    myQueue<State> queue;
+    queue.push(initState);
+    StepMap prevStep;
+    HeuMap explored; // key to heuristic f
+    HeuMap frontier; // key to heuristic f
+    frontier[getKey(initState)] = initState.f;
 
-int checkOpponent()
-{
-    if(board[0]==1 && board[1]==1 && board[2]==0)
-    return 2;
-    else if(board[0]==1 && board[1]==0 && board[2]==1)
-    return 1;
-    else if (board[1]==1 && board [2]==1 && board[0]==0)
-    return 0;
-    else if (board[3]==1 && board[4]==1 && board[5]==0)
-    return 5;
-    else if (board[4]==1 && board[5]==1&& board[3]==0)
-    return 3;
-    else if (board[3]==1 && board[4]==0&& board[5]==1)
-    return 4;
-    else if (board[1]==0 && board[4]==1&& board[7]==1)
-    return 1;
-    else
-    return 100;
-}
+    int count = 1;
+    while (!(queue.empty())) {
+        State s = queue.top();
+        queue.pop();
 
-void arduinoMove()
-{
-    int b = 0;
-    int counter =0;
-    int movesPlayed = 0;
-    Serial.print("\nArduino Move:");
+        explored[getKey(s)] = s.h;
+        frontier.erase(getKey(s));
 
-    int firstMoves[]={0,2,6,8}; // will use these positions first
-
-    for(counter=0;counter<4;counter++) //Count first moves played
-    {
-        if(board[firstMoves[counter]]!=0) // First move is played by someone
-        {
-            movesPlayed++;
+        if (s == goalState) {
+            unsigned long key = getKey(s);
+            while (prevStep.find(key) != prevStep.end()) {
+                Step step = prevStep[key];
+                steps.push_back(step);
+                s = takeStep(s, step, true);
+                key = getKey(s);
+            }
+            reverse(steps.begin(), steps.end());
+            return count;
         }
-    }  
-    do{
-        if(moves<=2)
-        {
-            int randomMove =random(4); 
-            int c=firstMoves[randomMove];
-            
-            if (board[c]==0)
-            {  
-                delay(1000);
-                board[c]=2;
-                Serial.print(firstMoves[randomMove]);
-                Serial.println();
-                drawCpuMove(firstMoves[randomMove]);
-                b=1;
-            }       
-                
-        }else
-        {
-        int nextMove = checkOpponent();
-        if(nextMove == 100)
-        {  
-        if(movesPlayed == 4) //All first moves are played
-        {
-            int randomMove =random(9); 
-            if (board[randomMove]==0)
-            {  
-                delay(1000);
-                board[randomMove]=2;
-                Serial.print(randomMove);
-                Serial.println();
-                drawCpuMove(randomMove);
-                b=1;
-            }       
-        }else
-        {
-            int randomMove =random(4); 
-            int c=firstMoves[randomMove];
-            
-            if (board[c]==0)
-            {  
-                delay(1000);
-                board[c]=2;
-                Serial.print(firstMoves[randomMove]);
-                Serial.println();
-                drawCpuMove(firstMoves[randomMove]);
-                b=1;
-            }       
-    }
-        }else
-        {
-             delay(1000);
-             board[nextMove]=2;
-             drawCpuMove(nextMove);
-             b=1;
+
+        vector<Step> avSteps;
+        getAvailableSteps(s, avSteps);
+
+        for (int i = 0; i < avSteps.size(); ++i) {
+            Step step = avSteps[i];
+            State successor = takeStep(s, step);
+            unsigned long key = getKey(successor);
+            if (explored.find(key) != explored.end())
+                continue;
+
+            if (frontier.find(key) != explored.end()) {
+                if (successor.f < frontier[key]) {
+                    prevStep[key] = step;
+                    frontier[key] = successor.f;
+                    queue.remove(successor);
+                    queue.push(successor);
+                }
+            } else {
+                ++count;
+                prevStep[key] = step;
+                frontier[key] = successor.f;
+                queue.push(successor);
+            }
         }
     }
-    }
-    while (b<1);
+
+    return count;
 }
-
-void drawCircle(int x, int y)
-{
-    drawBitmap(x,y,circle,65,65,RED);
-}
-
-void drawX(int x, int y)
-{
-    drawBitmap(x,y,x_bitmap,65,65,BLUE);
-}
-
-void drawCpuMove(int move)
-{
-    switch(move)
-    {
-        case 0: drawCircle(55,15);  break;
-        case 1: drawCircle(130,15); break;
-        case 2: drawCircle(205,15); break;
-        case 3: drawCircle(55,85);  break;
-        case 4: drawCircle(130,85); break;
-        case 5: drawCircle(205,85); break;
-        case 6: drawCircle(55,155); break;
-        case 7: drawCircle(130,155);break;
-        case 8: drawCircle(205,155);break;
-    }
-}
-
-void drawPlayerMove(int move)
-{
-    switch(move)
-    {
-        case 0: drawX(55,15);  break;
-        case 1: drawX(130,15); break;
-        case 2: drawX(205,15); break;
-        case 3: drawX(55,85);  break;
-        case 4: drawX(130,85); break;
-        case 5: drawX(205,85); break;
-        case 6: drawX(55,155); break;
-        case 7: drawX(130,155);break;
-        case 8: drawX(205,155);break;
-    }
-}
-
-void checkWinner() 
-// checks board to see if there is a winner
-// places result in the global variable 'winner'
-{
-    int qq=0;
-    // noughts win?
-    if (board[0]==1 && board[1]==1 && board[2]==1) { 
-        winner=1; 
-    }
-    if (board[3]==1 && board[4]==1 && board[5]==1) { 
-        winner=1; 
-    }
-    if (board[6]==1 && board[7]==1 && board[8]==1) { 
-        winner=1; 
-    }  
-    if (board[0]==1 && board[3]==1 && board[6]==1) { 
-        winner=1; 
-    }
-    if (board[1]==1 && board[4]==1 && board[7]==1) { 
-        winner=1; 
-    }
-    if (board[2]==1 && board[5]==1 && board[8]==1) { 
-        winner=1; 
-    }  
-    if (board[0]==1 && board[4]==1 && board[8]==1) { 
-        winner=1; 
-    }
-    if (board[2]==1 && board[4]==1 && board[6]==1) { 
-        winner=1; 
-    }
-    // crosses win?
-    if (board[0]==2 && board[1]==2 && board[2]==2) { 
-        winner=2; 
-    }
-    if (board[3]==2 && board[4]==2 && board[5]==2) { 
-        winner=2; 
-    }
-    if (board[6]==2 && board[7]==2 && board[8]==2) { 
-        winner=2; 
-    }  
-    if (board[0]==2 && board[3]==2 && board[6]==2) { 
-        winner=2; 
-    }
-    if (board[1]==2 && board[4]==2 && board[7]==2) { 
-        winner=2; 
-    }
-    if (board[2]==2 && board[5]==2 && board[8]==2) { 
-        winner=2; 
-    }  
-    if (board[0]==2 && board[4]==2 && board[8]==2) { 
-        winner=2; 
-    }
-    if (board[2]==2 && board[4]==2 && board[6]==2) { 
-        winner=2; 
-    }
- 
-}
-void drawBitmap(int16_t x, int16_t y,
- const uint8_t *bitmap, int16_t w, int16_t h, uint16_t color) {
-
-    int16_t i, j, byteWidth = (w + 7) / 8;
-    uint8_t byte;
-
-    for(j=0; j<h; j++) {
-        for(i=0; i<w; i++) {
-            if(i & 7) byte <<= 1;
-            else            byte     = pgm_read_byte(bitmap + j * byteWidth + i / 8);
-            if(byte & 0x80) tft.drawPixel(x+i, y+j, color);
-        }
-    }
-}
-
-
-
-
-
-
 

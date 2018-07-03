@@ -1,15 +1,15 @@
 #include <Adafruit_ILI9341.h>
 
-class buttonCoordinate {
+class ButtonCoordinate {
 public:
-    buttonCoordinate() {
+    ButtonCoordinate() {
         this->x = 0;
         this->y = 0;
         this->width = 0;
         this->height = 0;
     }
 
-    buttonCoordinate(int x, int y, int width, int height) {
+    ButtonCoordinate(int x, int y, int width, int height) {
         this->x = x;
         this->y = y;
         this->width = width;
