@@ -1,10 +1,9 @@
 #include <stdlib.h>
 #include <vector>
 #include <math.h>
-#include "zkey.h"
 #include "step.h"
 
-ZKey zKey;
+using namespace std;
 
 struct State {
     int pos[9]; // 1~8, 0 means empty
@@ -120,7 +119,10 @@ void printState(State s) {
 unsigned long getKey(State s) {
     unsigned long key = 0;
     for (int i = 0; i < 9; ++i) {
-        key ^= zKey[i * 9 + s.pos[i]];
+        unsigned long n = s.pos[i];
+        n <<= i * 4;
+        key ^= n;
+        // key ^= zKey[i * 9 + s.pos[i]];
     }
 
     return key;

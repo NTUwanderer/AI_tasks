@@ -14,5 +14,7 @@ all: EightPuzzle
 EightPuzzle: $(OBJ)
 	$(CXX) $(CXXFLAGS) -o $@ $(OBJ)
 
+clean:
+	rm -f $(OBJ) EightPuzzle
 # main.o: util.h state.h myQueue.h zkey.h 
 

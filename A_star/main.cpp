@@ -10,7 +10,6 @@
 #include "util.h"
 #include "state.h"
 #include "myQueue.h"
-#include "zkey.h"
 
 typedef unordered_map<unsigned long, Step> StepMap;
 typedef unordered_map<unsigned long, int>  HeuMap;
