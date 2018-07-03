@@ -1,10 +1,26 @@
 #include <stdlib.h>
 #include <vector>
 #include <math.h>
-#include "zkey.h"
+#include <string>
+#include <Adafruit_ILI9341.h>
+
 #include "step.h"
 
-ZKey zKey;
+#define BLACK   0x0000
+#define BLUE    0x001F
+#define RED     0xF800
+#define GREEN   0x07E0
+#define CYAN    0x07FF
+#define MAGENTA 0xF81F
+#define YELLOW  0xFFE0
+#define WHITE   0xFFFF
+
+
+extern Adafruit_ILI9341 tft;
+
+using namespace std;
+
+String num_str[9] = {" ", "1", "2", "3", "4", "5", "6", "7", "8"};
 
 struct State {
     int pos[9]; // 1~8, 0 means empty
@@ -94,13 +110,15 @@ bool solvable(State s) {
 
 State randomState() {
     State s;
-    for (int i = 0; i < 9; ++i) {
-        s.pos[i] = i;
+    for (int i = 0; i < 7; ++i) {
+        s.pos[i] = i+1;
     }
+    s.pos[7] = 0;
+    s.pos[8] = 8;
 
-    do {
-        shuffle(s.pos, 9);
-    } while (!solvable(s));
+    // do {
+    //     shuffle(s.pos, 9);
+    // } while (!solvable(s));
     s.g = 0;
     s.h = heuristic(s);
     s.f = s.g + s.h;
@@ -108,19 +126,76 @@ State randomState() {
     return s;
 }
 
-void printState(State s) {
-    for (int i = 0; i < 9; ++i) {
-        printf ("%i ", s.pos[i]);
-        if ((i + 1) % 3 == 0)
-            printf ("\n");
+void drawVerticalLine(int x) {
+    for(int i=0;i<5;i++) {
+        tft.drawLine(x+i,25,x+i,235,WHITE);
     }
-    printf ("g: %i, h: %i, f: %i, heu: %i\n", s.g, s.h, s.f, heuristic(s));
 }
+
+void drawHorizontalLine(int y) {
+    for(int i=0;i<5;i++) {
+        tft.drawLine(105,y+i,320,y+i,WHITE);
+    }
+}
+
+char* myToChars(int i) {
+    char buffer [50];
+    sprintf (buffer, "%3i", i);
+    return buffer;
+}
+
+void printState(State s) {
+    // for (int i = 0; i < 9; ++i) {
+    //     printf ("%i ", s.pos[i]);
+    //     if ((i + 1) % 3 == 0)
+    //         printf ("\n");
+    // }
+    // printf ("g: %i, h: %i, f: %i, heu: %i\n", s.g, s.h, s.f, heuristic(s));
+    tft.fillScreen(BLACK);
+
+    //Draw frame
+    // tft.drawRect(0,0,319,240,WHITE);
+
+    drawVerticalLine(105);
+    drawVerticalLine(175);
+    drawVerticalLine(245);
+    drawVerticalLine(315);
+
+    drawHorizontalLine(25);
+    drawHorizontalLine(95);
+    drawHorizontalLine(165);
+    drawHorizontalLine(235);
+
+    tft.setTextColor(BLUE);
+    tft.setTextSize(6);
+    for (int i = 0; i < 9; ++i) {
+        int x = 105 + 20 + (i % 3) * 70;
+        int y = 25 + 20 + (i / 3) * 70;
+        tft.setCursor(x, y);
+        tft.print(num_str[s.pos[i]]);
+    }
+
+    tft.setTextColor(CYAN);
+    tft.setTextSize(3);
+    tft.setCursor(10, 25);
+    tft.print("g:");
+    tft.print(myToChars(s.g));
+    tft.setCursor(10, 65);
+    tft.print("h:");
+    tft.print(myToChars(s.h));
+    tft.setCursor(10, 105);
+    tft.print("f:");
+    tft.print(myToChars(s.f));
+}
+
 
 unsigned long getKey(State s) {
     unsigned long key = 0;
     for (int i = 0; i < 9; ++i) {
-        key ^= zKey[i * 9 + s.pos[i]];
+        unsigned long n = s.pos[i];
+        n <<= i * 4;
+        key ^= n;
+        // key ^= zKey[i * 9 + s.pos[i]];
     }
 
     return key;
@@ -160,5 +235,15 @@ void getAvailableSteps(State s, vector<Step>& steps) {
 
     if ((p % 3) != 2)
         steps.push_back(getStep(p, p+1));
+}
+
+bool getLegalStep(State s, int index, Step& step) {
+    int emptyIndex = findPos(s, 0);
+    int delta = abs(index - emptyIndex);
+    if (delta == 1 || delta == 3) {
+        step = getStep(index, emptyIndex);
+        return true;
+    }
+    return false;
 }
 

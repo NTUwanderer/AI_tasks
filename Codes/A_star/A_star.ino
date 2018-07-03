@@ -8,6 +8,13 @@
 #include <unordered_map>
 #include <vector>
 #include <algorithm>
+
+#include "util.h"
+#include "state.h"
+#include "myQueue.h"
+#include "zkey.h"
+#include "buttonCoordinate.h"
+
 #define TOUCH_CS_PIN D3
 #define TOUCH_IRQ_PIN D2 
 
@@ -27,26 +34,33 @@ static uint8_t SD3 = 10;
 
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
 
-#define BLACK       0x0000
-#define BLUE        0x001F
-#define RED         0xF800
-#define GREEN       0x07E0
-#define CYAN        0x07FF
+#define BLACK   0x0000
+#define BLUE    0x001F
+#define RED     0xF800
+#define GREEN   0x07E0
+#define CYAN    0x07FF
 #define MAGENTA 0xF81F
 #define YELLOW  0xFFE0
-#define WHITE       0xFFFF
+#define WHITE   0xFFFF
 
 extern uint8_t circle[];
 extern uint8_t x_bitmap[];
 
-int gameScreen = 1;
+enum GameState{startMode, playerMode, aStarMode, endMode};
+GameState gameState = startMode;
+
+int gameScreen = 1; // deprecated
 int moves = 1;
+State initState, currentState;
 
-int winner = 0;  //0 = Draw, 1 = Human, 2 = CPU
+int winner = 0;  //0 = Draw, 1 = Human, 2 = CPU, deprecated
 
-boolean buttonEnabled = true;
+boolean buttonEnabled = true; // deprecated
 
-int board[]={0,0,0,0,0,0,0,0,0};// holds position data 0 is blank, 1 human, 2 is computer
+int board[]={0,0,0,0,0,0,0,0,0};// holds position data 0 is blank, 1 human, 2 is computer, deprecated
+
+buttonCoordinate playerButton, AStarButton;
+buttonCoordinate buttons[9];
 
 void setup() {
     pinMode(BL_LED,OUTPUT);
@@ -59,52 +73,104 @@ void setup() {
         Serial.println("Couldn't start touchscreen controller");
         while (1);
     }
+
+    gameSetup();
     initDisplay();
     drawStartScreen();
 }
 
-void loop() 
-{
+void loop() {
     boolean istouched = ts.touched();
-    if (istouched)
-    {
-     istouched = false;
-     TS_Point p0 = ts.getPoint(),p;  //Get touch point
+    if (istouched) {
+        istouched = false;
+        TS_Point p0 = ts.getPoint(),p;  //Get touch point
 
-     if(gameScreen==3)
-     {
-        buttonEnabled =true;
-     }
+        p.x = map(p0.x, TS_MINX, TS_MAXX, 0, 320);
+        p.y = map(p0.y, TS_MINY, TS_MAXY, 0, 240);
+
+        Serial.print("X = "); Serial.print(p.x);
+        Serial.print("\tY = "); Serial.print(p.y);
+        Serial.print("\n");
+                
+        if (gameState == startMode) {
+            if (playerButton.pressed(p.x, p.y)) {
+                gameState = playerMode;
+                resetGame();    
+                printState(currentState);
+            }
+        } else if (gameState == playerMode) {
+            int clickedIndex = -1;
+            for (int i = 0; i < 9; ++i) {
+                if (buttons[i].pressed(p.x, p.y)) {
+                    clickedIndex = i;
+                    tft.fillRect(buttons[i].x, buttons[i].y, buttons[i].width, buttons[i].height, RED);
+                    break;
+                }
+            }
+            delay(200);
+            Step step;
+            if (getLegalStep(currentState, clickedIndex, step)) {
+                currentState = takeStep(currentState, step);
+                printState(currentState);
+            } else {
+                printState(currentState);
+                
+                tft.setTextColor(RED);
+                tft.setTextSize(3);
+                tft.setCursor(10, 165);
+                tft.print("Error");
+            }
+
+            if (currentState == goalState) {
+                delay(1000);
+                gameState = endMode;
+                drawGameOverScreen(currentState.g);
+            }
+        } else if (gameState == endMode) {
+            gameState = startMode;
+            drawStartScreen();
+        }
+
     
-     p.x = map(p0.x, TS_MINX, TS_MAXX, 0, 320);
-     p.y = map(p0.y, TS_MINY, TS_MAXY, 0, 240);
-
-     Serial.print("X = "); Serial.print(p.x);
-     Serial.print("\tY = "); Serial.print(p.y);
-     Serial.print("\n");
-             
-     if(p.x>60 && p.x<260 && p.y>180 && p.y<220 && buttonEnabled)// The user has pressed inside the red rectangle
-     {
-        buttonEnabled = false; //Disable button
-        Serial.println("Button Pressed");
-        resetGame();    
-        drawGameScreen();
-        playGame();
-     } 
-     delay(10);  
+        /*
+        if(p.x>60 && p.x<260 && p.y>180 && p.y<220 && buttonEnabled)// The user has pressed inside the red rectangle
+        {
+            buttonEnabled = false; //Disable button
+            Serial.println("Button Pressed");
+            resetGame();    
+            drawGameScreen();
+            playGame();
+        } 
+        */
+        delay(10);  
     }
 }
 
-void resetGame()
-{
-    buttonEnabled = false;
-    for(int i=0;i<9;i++)
-    {
-     board[i]=0;
+void gameSetup() {
+    gameState = startMode;
+    playerButton = buttonCoordinate(30,180,120,40);
+    AStarButton  = buttonCoordinate(170,180,120,40);
+    for (int i = 0; i < 9; ++i) {
+        buttons[i] = buttonCoordinate(110 + (i % 3) * 70, 30 + (i / 3) * 70, 65, 65);
     }
-    moves = 1;
-    winner = 0;
-    gameScreen=2;
+
+    for (int i = 1; i <= 8; ++i) {
+        goalState.pos[i-1] = i;
+    }
+    goalState.pos[8] = 0;
+    goalState.h = 0;
+    goalState.g = 0;
+    goalState.f = 0;
+
+
+}
+
+void resetGame() {
+    moves = 0;
+    do {
+        initState = randomState();
+    } while (initState == goalState);
+    currentState = initState;
 }
 
 void drawStartScreen()
@@ -133,12 +199,21 @@ void drawStartScreen()
 void createStartButton()
 {
     //Create Red Button
-    tft.fillRect(60,180, 200, 40, RED);
-    tft.drawRect(60,180,200,40,WHITE);
-    tft.setCursor(72,188);
+    //tft.fillRect(30,180,120,40,RED);
+    //tft.drawRect(30,180,120,40,WHITE);
+    playerButton.fillAndDraw(tft, RED, WHITE);
+    tft.setCursor(36,188);
     tft.setTextColor(WHITE);
     tft.setTextSize(3);
-    tft.print("Start Game");
+    tft.print("Player");
+
+    //tft.fillRect(170,180,120,40,RED);
+    //tft.drawRect(170,180,120,40,WHITE);
+    AStarButton.fillAndDraw(tft, RED, WHITE);
+    tft.setCursor(176,188);
+    tft.setTextColor(WHITE);
+    tft.setTextSize(3);
+    tft.print("A star");
 }
 
 void initDisplay()
@@ -164,53 +239,29 @@ void drawGameScreen()
      drawHorizontalLine(150);
 }
 
-void drawGameOverScreen()
-{
+void drawGameOverScreen(int moves) {
      
     tft.fillScreen(BLACK);
 
     //Draw frame
     tft.drawRect(0,0,319,240,WHITE);
 
-    //Print "Game Over" Text
-    tft.setCursor(50,30);
-    tft.setTextColor(WHITE);
-    tft.setTextSize(4);
-    tft.print("GAME OVER");
-    
-
- if(winner == 0)
-{
-    //Print "DRAW!" text 
-    tft.setCursor(110,100);
-    tft.setTextColor(YELLOW);
-    tft.setTextSize(4);
-    tft.print("DRAW");
-}
- if(winner == 1)
-{
-    //Print "HUMAN WINS!" text 
-    tft.setCursor(40,100);
-    tft.setTextColor(BLUE);
-    tft.setTextSize(4);
-    tft.print("HUMAN WINS");
-}
-
- if(winner == 2)
-{
-    //Print "CPU WINS!" text 
-    tft.setCursor(60,100);
+    tft.setCursor(100,30);
     tft.setTextColor(RED);
-    tft.setTextSize(4);
-    tft.print("CPU WINS");
-}
+    tft.setTextSize(3);
+    tft.print("You Won!");
 
-     createPlayAgainButton();
-
-//   pinMode(XM, OUTPUT);
-//   pinMode(YP, OUTPUT);
-
-     
+    tft.setCursor(10,100);
+    tft.setTextColor(WHITE);
+    tft.setTextSize(3);
+    tft.print("You Spent ");
+    tft.print(myToChars(moves));
+    tft.print("\nMoves.");
+    
+    tft.setCursor(50,220);
+    tft.setTextColor(BLUE);
+    tft.setTextSize(2);
+    tft.print("Click to Continue...");
 }
 
 void createPlayAgainButton()
@@ -222,178 +273,6 @@ void createPlayAgainButton()
     tft.setTextColor(WHITE);
     tft.setTextSize(3);
     tft.print("Play Again");
-}
-
-
-void drawHorizontalLine(int y)
-{
-    int i=0;
-    for(i=0;i<7;i++)
-    {
-        tft.drawLine(60,y+i,270,y+i,WHITE);
-    }
-}
-
-void drawVerticalLine(int x)
-{
-    int i=0;
-    for(i=0;i<7;i++)
-    {
-        tft.drawLine(x+i,20,x+i,220,WHITE);
-    }
-}
-
-void playGame()
-{
-    do
-    {
-        if(moves%2==1)
-        {
-         arduinoMove();
-         printBoard();
-         checkWinner();
-        }else
-        {
-            playerMove(); 
-            printBoard();
-            checkWinner();  
-        }
-        moves++;
-    }
-    while (winner==0 && moves<10); 
-    if(winner == 1)
-    {
-        Serial.println("HUMAN WINS");
-        delay(3000);
-        gameScreen=3;
-        drawGameOverScreen();
-    }else if(winner ==2)
-    {
-         Serial.println("CPU WINS");
-         delay(3000);
-         gameScreen=3;
-         drawGameOverScreen();
-    }else
-    {
-        Serial.println("DRAW");
-        delay(3000);
-        gameScreen=3;
-        drawGameOverScreen();
-    }
-    
-}
-
-void playerMove()
-{
-    TS_Point p,p0;
-    boolean validMove = false;
-    boolean istouched=false;
-    Serial.print("\nPlayer Move:");
-    do
-    { 
-        istouched = ts.touched();
-        if (istouched){
-            
-            p0 = ts.getPoint();  //Get touch point  
-            p.x = map(p0.x, TS_MINX, TS_MAXX, 0, 320);
-            p.y = map(p0.y, TS_MINY, TS_MAXY, 0, 240);
-            Serial.println(p.x);
-            Serial.println(p.y);
-    
-
-            if((p.x<115)&& (p.y>=150)) //6
-            {
-                if(board[6]==0)
-                {
-                    Serial.println("Player Move: 6");
-                    board[6]=1;
-                    drawPlayerMove(6);  
-                    Serial.println("Drawing player move");
-                }
-            }
-             else if((p.x>0 && p.x<115)&& (p.y<150 && p.y>80)) //3
-            {
-             
-                if(board[3]==0)
-                {
-                 Serial.println("Player Move: 3");
-                    board[3]=1;
-                    drawPlayerMove(3);  
-                    Serial.println("Drawing player move");
-                }
-            }
-             else if((p.x<125)&& (p.y<80)) //0
-            {
-                if(board[0]==0)
-                {
-                    Serial.println("Player Move: 0");                    
-                    board[0]=1;
-                    drawPlayerMove(0);  
-                }
-            }
-
-        else if((p.x>125 && p.x<=195)&& (p.y<80)) //1
-            {
-                if(board[1]==0)
-                {
-                    Serial.println("Player Move: 1");                    
-                    board[1]=1;
-                    drawPlayerMove(1);  
-                }
-            }
-
-             else if((p.x>195)&& (p.y<80)) //2
-            {
-                if(board[2]==0)
-                {
-                    Serial.println("Player Move: 2");                    
-                    board[2]=1;
-                    drawPlayerMove(2);  
-                }
-            }
-
-            else if((p.x>125 && p.x<=195)&& (p.y<150 && p.y>80)) //4
-            {
-                if(board[4]==0)
-                {
-                    Serial.println("Player Move: 4");                    
-                    board[4]=1;
-                    drawPlayerMove(4);  
-                }
-            }
-
-             else if((p.x>195)&& (p.y<150 && p.y>80)) //5
-            {
-                if(board[5]==0)
-                {
-                    Serial.println("Player Move: 5");                    
-                    board[5]=1;
-                    drawPlayerMove(5);  
-                }
-            }
-
-                else if((p.x>125 && p.x<=195)&& (p.y>150)) //7
-            {
-                if(board[7]==0)
-                {
-                    Serial.println("Player Move: 7");                    
-                    board[7]=1;
-                    drawPlayerMove(7);  
-                }
-            }
-
-             else if((p.x>195)&& (p.y>150)) //8
-            {
-                if(board[8]==0)
-                {
-                    Serial.println("Player Move: 8");                    
-                    board[8]=1;
-                    drawPlayerMove(8);  
-                }
-            }
-        }
-     }while(!istouched); 
-     istouched=false;
 }
 
 void printBoard()
