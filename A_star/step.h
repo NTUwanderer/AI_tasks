@@ -1,5 +1,8 @@
 #include <stdlib.h>
 
+#ifndef ASTAR_STEP
+#define ASTAR_STEP
+
 struct Step {
     int p1;
     int p2;
@@ -12,4 +15,6 @@ struct Step getStep(int i, int j) {
 
     return step;
 }
+
+#endif
 

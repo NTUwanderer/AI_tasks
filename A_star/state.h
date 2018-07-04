@@ -5,27 +5,38 @@
 
 using namespace std;
 
+#ifndef ASTAR_STATE
+#define ASTAR_STATE
+
+class myHashComparison {
+    bool reverse;
+public:
+    myHashComparison(const bool& revparam=true) {
+        reverse=revparam;
+    }
+    bool operator() (const unsigned long long& lhs, const unsigned long long& rhs) const {
+        unsigned long long l = (lhs >> 36);
+        unsigned long long r = (rhs >> 36);
+        if (reverse) return (l>r);
+        else return (l<r);
+    }
+};
+
+/*
+bool myHashCompare(unsigned long long lhs, unsigned long long rhs) {
+    return ((lhs >> 36) > (rhs >> 36));
+}
+*/
+
 struct State {
     int pos[9]; // 1~8, 0 means empty
     int g;
     int h;
     int f;
 
-    /*
-    State& operator= (const State& s) {
-        for (int i = 0; i < 9; ++i) {
-            pos[i] = s.pos[i];
-        }
-    
-        g = s.g;
-        h = s.h;
-        f = s.f;
-    
-        return *this;
-    }
-    */
-
 } goalState;
+
+unsigned long long mask = 15;
 
 bool operator< (const State& s1, const State& s2) {
     return s1.f > s2.f;
@@ -116,16 +127,43 @@ void printState(State s) {
     printf ("g: %i, h: %i, f: %i, heu: %i\n", s.g, s.h, s.f, heuristic(s));
 }
 
-unsigned long getKey(State s) {
-    unsigned long key = 0;
+unsigned long long getKey(State s) {
+    unsigned long long key = 0;
     for (int i = 0; i < 9; ++i) {
-        unsigned long n = s.pos[i];
+        unsigned long long n = s.pos[i];
         n <<= i * 4;
         key ^= n;
         // key ^= zKey[i * 9 + s.pos[i]];
     }
 
     return key;
+}
+
+unsigned long long getHash(State s) {
+    unsigned long long key = s.f;
+    key <<= 36;
+    for (int i = 0; i < 9; ++i) {
+        unsigned long long n = s.pos[i];
+        n <<= i * 4;
+        key ^= n;
+        // key ^= zKey[i * 9 + s.pos[i]];
+    }
+
+    return key;
+}
+
+State getState(unsigned long long hash) {
+    State s;
+    for (int i = 0; i < 9; ++i) {
+        s.pos[i] = hash & mask;
+        hash >>= 4;
+    }
+
+    s.f = hash;
+    s.h = heuristic(s);
+    s.g = s.f - s.h;
+
+    return s;
 }
 
 State takeStep(State s, Step step, bool reverse = false) {
@@ -163,4 +201,6 @@ void getAvailableSteps(State s, vector<Step>& steps) {
     if ((p % 3) != 2)
         steps.push_back(getStep(p, p+1));
 }
+
+#endif
 

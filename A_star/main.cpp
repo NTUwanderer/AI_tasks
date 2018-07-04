@@ -11,14 +11,16 @@
 #include "state.h"
 #include "myQueue.h"
 
-typedef unordered_map<unsigned long, Step> StepMap;
-typedef unordered_map<unsigned long, int>  HeuMap;
+typedef unordered_map<unsigned long long, Step> StepMap;
+typedef unordered_map<unsigned long long, int>  HeuMap;
 
 using namespace std;
 
 int A_star_search(State initState, int cutoff, vector<Step>& steps) {
-    myQueue<State> queue;
-    queue.push(initState);
+    myQueue<unsigned long long> queue;
+    // priority_queue<unsigned long long, vector<unsigned long long>, decltype(&myHashCompare)> queue(&myHashCompare);
+    // priority_queue<unsigned long long, vector<unsigned long long>, decltype(&myHashCompare)> queue(&myHashCompare);
+    queue.push(getHash(initState));
     StepMap prevStep;
     HeuMap explored; // key to heuristic f
     HeuMap frontier; // key to heuristic f
@@ -26,14 +28,14 @@ int A_star_search(State initState, int cutoff, vector<Step>& steps) {
 
     int count = 1;
     while (!(queue.empty())) {
-        State s = queue.top();
+        State s = getState(queue.top());
         queue.pop();
 
         explored[getKey(s)] = s.h;
         frontier.erase(getKey(s));
 
         if (s == goalState) {
-            unsigned long key = getKey(s);
+            unsigned long long key = getKey(s);
             while (prevStep.find(key) != prevStep.end()) {
                 Step step = prevStep[key];
                 steps.push_back(step);
@@ -50,7 +52,7 @@ int A_star_search(State initState, int cutoff, vector<Step>& steps) {
         for (int i = 0; i < avSteps.size(); ++i) {
             Step step = avSteps[i];
             State successor = takeStep(s, step);
-            unsigned long key = getKey(successor);
+            unsigned long long key = getKey(successor);
             if (explored.find(key) != explored.end())
                 continue;
 
@@ -58,14 +60,14 @@ int A_star_search(State initState, int cutoff, vector<Step>& steps) {
                 if (successor.f < frontier[key]) {
                     prevStep[key] = step;
                     frontier[key] = successor.f;
-                    queue.remove(successor);
-                    queue.push(successor);
+                    queue.remove(getHash(successor));
+                    queue.push(getHash(successor));
                 }
             } else {
                 ++count;
                 prevStep[key] = step;
                 frontier[key] = successor.f;
-                queue.push(successor);
+                queue.push(getHash(successor));
             }
         }
     }
@@ -74,8 +76,8 @@ int A_star_search(State initState, int cutoff, vector<Step>& steps) {
 }
 
 int main() {
-    srand(time(NULL));
-    // srand(2);
+    // srand(time(NULL));
+    srand(2);
     for (int i = 1; i <= 8; ++i) {
         goalState.pos[i-1] = i;
     }
@@ -85,12 +87,12 @@ int main() {
     goalState.f = -1;
 
 
-    State initState = randomState();
-    printState(initState);
+    for (int index = 0; index < 1; ++index) {
+        State initState = randomState();
+        printState(initState);
 
-    vector<Step> steps;
-    int cutoff = INT_MAX;
-    while (true) {
+        vector<Step> steps;
+        int cutoff = INT_MAX;
         int count = A_star_search(initState, cutoff, steps);
 
         printf ("count: %i, step size: %i\n", count, steps.size());
@@ -103,8 +105,6 @@ int main() {
             printf ("Success!\n");
         else
             printf ("Fail!\n");
-
-        break;
     }
 }
 

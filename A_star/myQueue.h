@@ -1,8 +1,11 @@
 #include <queue>
+#include <vector>
 
-template<typename T>
-class myQueue : public std::priority_queue<T, std::vector<T>>
-{
+#include "state.h"
+
+template<typename T,
+         typename Sequence = std::vector<T> >
+class myQueue : public std::priority_queue<T, Sequence, myHashComparison> {
 public:
 
     bool edit(const T& value) {
