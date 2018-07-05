@@ -45,8 +45,8 @@ Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
 extern uint8_t circle[];
 extern uint8_t x_bitmap[];
 
-typedef unordered_map<unsigned long, Step> StepMap;
-typedef unordered_map<unsigned long, int>  HeuMap;
+typedef unordered_map<unsigned long long, Step> StepMap;
+typedef unordered_map<unsigned long long, int>  HeuMap;
 
 enum GameState{startMode, playerMode, AStarMode, endMode};
 GameState gameState;
@@ -387,7 +387,7 @@ int A_star_search(State initState, int cutoff, vector<Step>& steps) {
         frontier.erase(getKey(s));
 
         if (s == goalState) {
-            unsigned long key = getKey(s);
+            unsigned long long key = getKey(s);
             while (prevStep.find(key) != prevStep.end()) {
                 Step step = prevStep[key];
                 steps.push_back(step);
@@ -404,7 +404,7 @@ int A_star_search(State initState, int cutoff, vector<Step>& steps) {
         for (int i = 0; i < avSteps.size(); ++i) {
             Step step = avSteps[i];
             State successor = takeStep(s, step);
-            unsigned long key = getKey(successor);
+            unsigned long long key = getKey(successor);
             if (explored.find(key) != explored.end())
                 continue;
 

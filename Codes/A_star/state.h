@@ -61,7 +61,7 @@ void printNumber(State s, int index);
 void printState(State s);
 void getAvailableSteps(State s, vector<Step>& steps);
 bool getLegalStep(State s, int index, Step& step);
-unsigned long getKey(State s);
+unsigned long long getKey(State s);
 State takeStep(State s, Step step, bool reverse = false);
 
 int findPos(State s, int n) {
@@ -218,10 +218,10 @@ void printState(State s) {
 }
 
 
-unsigned long getKey(State s) {
-    unsigned long key = 0;
+unsigned long long getKey(State s) {
+    unsigned long long key = 0;
     for (int i = 0; i < 9; ++i) {
-        unsigned long n = s.pos[i];
+        unsigned long long n = s.pos[i];
         n <<= i * 4;
         key ^= n;
         // key ^= zKey[i * 9 + s.pos[i]];
