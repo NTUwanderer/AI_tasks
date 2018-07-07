@@ -16,7 +16,5 @@ Reversi: $(OBJ)
 	$(CXX) $(CXXFLAGS) -o $@ $(OBJ)
 
 clean:
-	rm -f $(OBJ)
-
-main.o: util.h state.h myQueue.h zkey.h 
+	rm -f $(OBJ) Reversi
 

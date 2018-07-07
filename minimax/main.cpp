@@ -36,7 +36,11 @@ void playerMove(State& s, const bool (&available)[8][8], bool blackTurn = true) 
         y = col - 'a';
 
         if (inBoard(x, y) && available[x][y]) {
-            s = takeStep(s, x, y, blackTurn);
+            State newS = takeStep(s, x, y, blackTurn);
+            if (newS == s) {
+                cout << "Error!!!!!!!!!!!" << endl;
+            }
+            s = newS;
             break;
         }
         printf ("Invalid Input\n");
@@ -50,6 +54,7 @@ int minimax(State& s, const bool (&available)[8][8], bool blackTurn, int depth, 
     int bestHeu = 0;
 
     bool newAvailable[8][8];
+    bool finish = false;
 
     for (int i = 0; i < 8; ++i) {
         for (int j = 0; j < 8; ++j) {
@@ -58,26 +63,46 @@ int minimax(State& s, const bool (&available)[8][8], bool blackTurn, int depth, 
 
             int h;
             State newS = takeStep(s, i, j, blackTurn);
+            if (newS == s) {
+                cout << "Error!!!!!!!!!!!" << endl;
+            }
             if (depth <= 1 || isEnd(newS)) {
                 h = heuristic(newS);
             } else {
                 availablePlaces(newS, newAvailable, !blackTurn);
-                h = minimax(newS, newAvailable, !blackTurn, depth - 1);
+                h = minimax(newS, newAvailable, !blackTurn, depth - 1, alpha, beta);
             }
 
             if (bestX == -1 || (blackTurn && h > bestHeu) || (!blackTurn && h < bestHeu)) {
                 bestX   = i;
                 bestY   = j;
                 bestHeu = h;
+
+                if (blackTurn && bestHeu > alpha)
+                    alpha = bestHeu;
+                else if (!blackTurn && bestHeu < beta)
+                    beta = bestHeu;
+
+
+                if (alpha >= beta)
+                    finish = true;
             }
+            if (finish)
+                break;
         }
+        if (finish)
+            break;
     }
     if (bestX == -1) {
         State newS = s;
         availablePlaces(newS, newAvailable, !blackTurn);
         bestHeu = minimax(newS, newAvailable, !blackTurn, depth - 1);
     } else {
-        s = takeStep(s, bestX, bestY, blackTurn);
+        State newS = takeStep(s, bestX, bestY, blackTurn);
+        if (newS == s) {
+            cout << "Error!!!!!!!!!!!" << endl;
+        }
+        s = newS;
     }
 
     return bestHeu;
@@ -103,7 +128,7 @@ int main() {
     bool blackTurn = (mode != 2);
 
     bool available[8][8];
-    int depth = 10;
+    int depth = 5;
 
     char c;
 
