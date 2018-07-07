@@ -55,6 +55,9 @@ State initState, currentState;
 int countMinimax;
 bool availables[8][8];
 bool redTurn;
+const int depth = 4;
+
+int minimax(State& s, const bool (&available)[8][8], bool redTurn, int depth, int alpha = INT_MIN, int beta = INT_MAX);
 
 void setup() {
     pinMode(BL_LED,OUTPUT);
@@ -87,12 +90,13 @@ void loop() {
         Serial.print("\n");
                 
         if (gameState == startMode) {
+            resetGame();
+            printState(currentState, redTurn);
             if (playerButton.pressed(p.x, p.y)) {
                 gameState = playerMode;
-                resetGame();
-                printState(currentState, redTurn);
                 drawGiveupButton();
-
+            } else if (MinimaxButton.pressed(p.x, p.y)) {
+                gameState = MinimaxMode;
             }
         } else if (gameState == playerMode) {
             if (giveupButton.pressed(p.x, p.y)) {
@@ -140,6 +144,23 @@ void loop() {
                 }
 
             }
+        } else if (gameState == MinimaxMode) {
+            delay(300);
+            availablePlaces(currentState, availables, redTurn);
+            minimax(currentState, availables, redTurn, depth);
+            redTurn = !redTurn;
+
+            if (availablePlaces(currentState, availables, redTurn) == 0) {
+                redTurn = !redTurn;
+            }
+            printState(currentState, redTurn);
+
+            if (availablePlaces(currentState, availables, redTurn) == 0 && availablePlaces(currentState, availables, !redTurn) == 0) {
+                delay(700);
+                gameState = endMode;
+                drawGameOverScreen(countResult(currentState));
+            }
+
         } else if (gameState == endMode) {
             gameState = startMode;
             drawStartScreen();
@@ -260,18 +281,26 @@ void gameSetup() {
         for (int j = 0; j < 8; ++j)
             buttons[i][j] = ButtonCoordinate(90 + 1 + i * 28, 10 + 1 + j * 28, 27, 27);
 
-    for (int i = 0; i < 8; ++i)
-        for (int j = 0; j < 8; ++j)
-            initState.pos[i][j] = -1;
-    initState.pos[3][3] = 1;
-    initState.pos[4][4] = 1;
-    initState.pos[3][4] = 0;
-    initState.pos[4][3] = 0;
+    for (int i = 0; i < 8; ++i) {
+        for (int j = 0; j < 8; ++j) {
+            initState.exist[i][j] = false;
+            initState.pos[i][j] = false;
+        }
+    }
+    initState.exist[3][3] = true;
+    initState.exist[4][4] = true;
+    initState.exist[3][4] = true;
+    initState.exist[4][3] = true;
+
+    initState.pos[3][3] = true;
+    initState.pos[4][4] = true;
+    initState.pos[3][4] = false;
+    initState.pos[4][3] = false;
     
-    for (int i = 1; i < 8; ++i)
-        for (int j = 1; j < 8; ++j)
-            initState.pos[i][j] = (i+j) % 2;
-    initState.h = heuristic(initState);
+    // for (int i = 1; i < 8; ++i)
+    //     for (int j = 1; j < 8; ++j)
+    //         initState.pos[i][j] = (i+j) % 2;
+    // initState.h = heuristic(initState);
 }
 
 void resetGame() {
@@ -402,14 +431,55 @@ void drawMinimaxGameOverScreen(int moves) {
     tft.print("Click to Continue...");
 }
 
-void createPlayAgainButton()
-{
-     //Create Red Button
-    tft.fillRect(60,180, 200, 40, RED);
-    tft.drawRect(60,180,200,40,WHITE);
-    tft.setCursor(72,188);
-    tft.setTextColor(WHITE);
-    tft.setTextSize(3);
-    tft.print("Play Again");
-}
+// return best heuristic value with a limited trace depth
+int minimax(State& s, const bool (&available)[8][8], bool redTurn, int depth, int alpha, int beta) {
 
+    int bestX = -1, bestY = -1;
+    int bestHeu = 0;
+
+    bool newAvailable[8][8];
+    bool finish = false;
+
+    for (int i = 0; i < 8; ++i) {
+        for (int j = 0; j < 8; ++j) {
+            if (!available[i][j])
+                continue;
+
+            int h;
+            State newS = takeStep(s, i, j, redTurn);
+            if (depth <= 1 || isEnd(newS)) {
+                h = heuristic(newS);
+            } else {
+                availablePlaces(newS, newAvailable, !redTurn);
+                h = minimax(newS, newAvailable, !redTurn, depth - 1, alpha, beta);
+            }
+
+            if (bestX == -1 || (redTurn && h > bestHeu) || (!redTurn && h < bestHeu)) {
+                bestX   = i;
+                bestY   = j;
+                bestHeu = h;
+                if (redTurn && bestHeu > alpha)
+                    alpha = bestHeu;
+                else if (!redTurn && bestHeu < beta)
+                    beta = bestHeu;
+
+
+                if (alpha >= beta)
+                    finish = true;
+            }
+            if (finish)
+                break;
+        }
+        if (finish)
+            break;
+    }
+    if (bestX == -1) {
+        State newS = s;
+        availablePlaces(newS, newAvailable, !redTurn);
+        bestHeu = minimax(newS, newAvailable, !redTurn, depth - 1);
+    } else {
+        s = takeStep(s, bestX, bestY, redTurn);
+    }
+
+    return bestHeu;
+} 

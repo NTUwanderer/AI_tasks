@@ -4,8 +4,6 @@
 #include <string>
 #include <Adafruit_ILI9341.h>
 
-#include "step.h"
-
 #define BLACK   0x0000
 #define BLUE    0x001F
 #define RED     0xF800
@@ -21,20 +19,17 @@ extern Adafruit_ILI9341 tft;
 using namespace std;
 
 struct State {
-    int pos[8][8]; // 0: x (red), 1: o (blue): x, -1 means empty
-    int h;
+    bool pos[8][8]; // false: x (red), true: o (blue)
+    bool exist[8][8];
 };
-
-bool operator< (const State& s1, const State& s2) {
-    return s1.h > s2.h;
-}
 
 bool operator== (const State& s1, const State& s2) {
     for (int i = 0; i < 8; ++i) {
         for (int j = 0; j < 8; ++j) {
-            if (s1.pos[i][j] != s2.pos[i][j]) {
+            if (s1.exist[i][j] != s2.exist[i][j])
                 return false;
-            }
+            if (s1.exist[i][j] && s1.pos[i][j] != s2.pos[i][j])
+                return false;
         }
     }
 
@@ -78,20 +73,20 @@ int countResult(const State& s) {
     int result = 0;
     for (int i = 0; i < 8; ++i)
         for (int j = 0; j < 8; ++j)
-            result += (s.pos[i][j] == 0) ? 1 : (s.pos[i][j] == 1) ? -1 : 0;
+            result += (!s.exist[i][j]) ? 0 : (!s.pos[i][j]) ? 1 : -1;
 
     return result;
 }
 
 int availablePlaces(const State& s, bool (&available)[8][8], bool redTurn) {
 
-    int currentC = redTurn ? 0 : 1;
-    int opponentC = (currentC + 1) % 2;
+    bool currentC = redTurn ? false : true;
+    bool opponentC = !currentC;
 
     for (int i = 0; i < 8; ++i) {
         for (int j = 0; j < 8; ++j) {
             available[i][j] = false;
-            if (s.pos[i][j] >= 0) {
+            if (s.exist[i][j]) {
                 continue;
             }
 
@@ -108,7 +103,7 @@ int availablePlaces(const State& s, bool (&available)[8][8], bool redTurn) {
                         if (!(inBoard(x, y)))
                             break;
 
-                        if (s.pos[x][y] == -1)
+                        if (!s.exist[x][y])
                             break;
 
                         if (s.pos[x][y] == opponentC)
@@ -143,25 +138,18 @@ int availablePlaces(const State& s, bool (&available)[8][8], bool redTurn) {
 
 int heuristic(State& s) {
 
-    s.h = 0;
+    int h = 0;
 
     bool available[8][8];
     int redMoves = availablePlaces(s, available, true);
     int blueMoves = availablePlaces(s, available, false);
     if (redMoves != 0 || blueMoves != 0)
-        s.h = redMoves - blueMoves;
+        h = redMoves - blueMoves;
     else {
-        for (int i = 0; i < 8; ++i) {
-            for (int j = 0; j < 8; ++j) {
-                if (s.pos[i][j] == 0)
-                    ++(s.h);
-                else if (s.pos[i][j] == 1)
-                    --(s.h);
-            }
-        }
+        h = countResult(s);
     }
 
-    return s.h;
+    return h;
 }
 
 bool isEnd(const State& s) {
@@ -185,14 +173,17 @@ void drawHorizontalLine(int y) {
 }
 
 void printNumber(const State& s, int i, int j) {
+    if (!s.exist[i][j])
+        return;
+
     int x = 90 + 5 + i * 28;
     int y = 10 + 2 + j * 28;
     tft.setCursor(x, y);
-    if (s.pos[i][j] == 0) {
+    if (!s.pos[i][j]) {
         tft.setTextColor(RED);
         tft.print("x");
     }
-    else if (s.pos[i][j] == 1) {
+    else {
         tft.setTextColor(BLUE);
         tft.print("o");
     }
@@ -218,7 +209,7 @@ void printState(State& s, bool redTurn) {
     tft.setTextSize(2);
     tft.setCursor(10, 25);
     tft.print("h:");
-    tft.print(myToChars(s.h));
+    tft.print(myToChars(heuristic(s)));
 
     tft.setCursor(10, 65);
     tft.setTextSize(2);
@@ -234,8 +225,8 @@ void printState(State& s, bool redTurn) {
 State takeStep(const State& s, int i, int j, bool redTurn) {
     State newS = s;
 
-    int currentC = redTurn ? 0 : 1;
-    int opponentC = (currentC + 1) % 2;
+    bool currentC = redTurn ? false : true;
+    bool opponentC = !currentC;
 
     // direction (a, b)
     for (int a = -1; a <= 1; ++a) {
@@ -251,7 +242,7 @@ State takeStep(const State& s, int i, int j, bool redTurn) {
                 if (!(inBoard(x, y)))
                     break;
 
-                if (s.pos[x][y] == -1)
+                if (!s.exist[x][y])
                     break;
 
                 if (newS.pos[x][y] == opponentC)
@@ -273,8 +264,9 @@ State takeStep(const State& s, int i, int j, bool redTurn) {
             }
         }
     }
+    newS.exist[i][j] = true;
     newS.pos[i][j] = currentC;
-    newS.h = heuristic(newS);
+    heuristic(newS);
 
     return newS;
 }
