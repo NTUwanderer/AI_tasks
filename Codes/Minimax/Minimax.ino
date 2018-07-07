@@ -45,17 +45,17 @@ extern uint8_t x_bitmap[];
 
 typedef unordered_map<unsigned long long, int>  HeuMap;
 
-enum GameState{startMode, playerMode, MinimaxMode, endMode};
+enum GameState{startMode, playerMode, PvEMode, MinimaxMode, endMode};
 GameState gameState;
 
-ButtonCoordinate playerButton, giveupButton, MinimaxButton;
+ButtonCoordinate playerButton, PvEButton, MinimaxButton, giveupButton;
 ButtonCoordinate buttons[8][8];
 
 State initState, currentState;
 int countMinimax;
 bool availables[8][8];
 bool redTurn;
-const int depth = 4;
+const int depth = 3;
 
 int minimax(State& s, const bool (&available)[8][8], bool redTurn, int depth, int alpha = INT_MIN, int beta = INT_MAX);
 
@@ -78,16 +78,18 @@ void setup() {
 
 void loop() {
     boolean istouched = ts.touched();
-    if (istouched || gameState == MinimaxMode) {
+    if (istouched || (gameState == PvEMode && !redTurn) || gameState == MinimaxMode) {
         istouched = false;
         TS_Point p0 = ts.getPoint(),p;  //Get touch point
 
         p.x = map(p0.x, TS_MINX, TS_MAXX, 0, 320);
         p.y = map(p0.y, TS_MINY, TS_MAXY, 0, 240);
 
-        Serial.print("X = "); Serial.print(p.x);
-        Serial.print("\tY = "); Serial.print(p.y);
-        Serial.print("\n");
+        if (istouched) {
+            Serial.print("X = "); Serial.print(p.x);
+            Serial.print("\tY = "); Serial.print(p.y);
+            Serial.print("\n");
+        }
                 
         if (gameState == startMode) {
             resetGame();
@@ -95,11 +97,77 @@ void loop() {
             if (playerButton.pressed(p.x, p.y)) {
                 gameState = playerMode;
                 drawGiveupButton();
+            } else if (PvEButton.pressed(p.x, p.y)) {
+                gameState = PvEMode;
+                drawGiveupButton();
             } else if (MinimaxButton.pressed(p.x, p.y)) {
                 gameState = MinimaxMode;
             }
         } else if (gameState == playerMode) {
             if (giveupButton.pressed(p.x, p.y)) {
+                gameState = endMode;
+                drawGameOverScreen(INT_MIN);
+
+            } else {
+                int clickedI = -1, clickedJ = -1;
+                for (int i = 0; i < 8; ++i) {
+                    for (int j = 0; j < 8; ++j) {
+                        if (buttons[i][j].pressed(p.x, p.y)) {
+                            clickedI = i;
+                            clickedJ = j;
+                            tft.fillRect(buttons[i][j].x, buttons[i][j].y, buttons[i][j].width, buttons[i][j].height, GREEN);
+                            tft.setTextSize(3);
+                            printNumber(currentState, i, j);
+                            break;
+                        }
+                    }
+                }
+                delay(200);
+                availablePlaces(currentState, availables, redTurn);
+                if (!(clickedI == -1 || clickedJ == -1) && availables[clickedI][clickedJ]) {
+                    currentState = takeStep(currentState, clickedI, clickedJ, redTurn);
+                    redTurn = !redTurn;
+
+                    if (availablePlaces(currentState, availables, redTurn) == 0) {
+                        redTurn = !redTurn;
+                    }
+                    printState(currentState, redTurn);
+                } else {
+                    printState(currentState, redTurn);
+                    tft.setTextColor(RED);
+                    tft.setTextSize(2);
+                    tft.setCursor(10, 150);
+                    tft.print("Error");
+                }
+
+                if (availablePlaces(currentState, availables, redTurn) == 0 && availablePlaces(currentState, availables, !redTurn) == 0) {
+                    delay(1000);
+                    gameState = endMode;
+                    drawGameOverScreen(countResult(currentState));
+                } else {
+                    drawGiveupButton();
+                }
+
+            }
+        } else if (gameState == PvEMode) {
+            if (!redTurn) {
+                delay(300);
+                availablePlaces(currentState, availables, redTurn);
+                minimax(currentState, availables, redTurn, depth);
+                redTurn = !redTurn;
+
+                if (availablePlaces(currentState, availables, redTurn) == 0) {
+                    redTurn = !redTurn;
+                }
+                printState(currentState, redTurn);
+
+                if (availablePlaces(currentState, availables, redTurn) == 0 && availablePlaces(currentState, availables, !redTurn) == 0) {
+                    delay(700);
+                    gameState = endMode;
+                    drawGameOverScreen(countResult(currentState));
+                }
+            }
+            else if (giveupButton.pressed(p.x, p.y)) {
                 gameState = endMode;
                 drawGameOverScreen(INT_MIN);
 
@@ -274,9 +342,10 @@ void drawGiveupButton() {
 
 void gameSetup() {
     gameState = startMode;
-    playerButton = ButtonCoordinate(10,180,140,40);
+    playerButton = ButtonCoordinate(10,180,90,40);
+    PvEButton = ButtonCoordinate(110,180,90,40);
+    MinimaxButton  = ButtonCoordinate(210,180,90,40);
     giveupButton = ButtonCoordinate(5,200,80,30);
-    MinimaxButton  = ButtonCoordinate(170,180,140,40);
     for (int i = 0; i < 8; ++i)
         for (int j = 0; j < 8; ++j)
             buttons[i][j] = ButtonCoordinate(90 + 1 + i * 28, 10 + 1 + j * 28, 27, 27);
@@ -337,20 +406,22 @@ void drawStartScreen()
 void createStartButton()
 {
     //Create Red Button
-    //tft.fillRect(30,180,120,40,RED);
-    //tft.drawRect(30,180,120,40,WHITE);
     playerButton.fillAndDraw(tft, RED, WHITE);
-    tft.setCursor(36,188);
+    tft.setCursor(playerButton.x + 10, playerButton.y + 12);
     tft.setTextColor(WHITE);
-    tft.setTextSize(3);
+    tft.setTextSize(2);
     tft.print("Player");
 
-    //tft.fillRect(170,180,120,40,RED);
-    //tft.drawRect(170,180,120,40,WHITE);
-    MinimaxButton.fillAndDraw(tft, RED, WHITE);
-    tft.setCursor(176,188);
+    PvEButton.fillAndDraw(tft, RED, WHITE);
+    tft.setCursor(PvEButton.x + 6, PvEButton.y + 10);
     tft.setTextColor(WHITE);
-    tft.setTextSize(3);
+    tft.setTextSize(2);
+    tft.print("P vs E");
+
+    MinimaxButton.fillAndDraw(tft, RED, WHITE);
+    tft.setCursor(MinimaxButton.x + 6, MinimaxButton.y + 10);
+    tft.setTextColor(WHITE);
+    tft.setTextSize(2);
     tft.print("Minimax");
 }
 
