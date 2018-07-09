@@ -78,6 +78,7 @@ void setup() {
 void loop() {
     boolean istouched = ts.touched();
     if (istouched || gameState == AStarMode) {
+		Serial.print("touched");
         istouched = false;
         TS_Point p0 = ts.getPoint(),p;  //Get touch point
 
