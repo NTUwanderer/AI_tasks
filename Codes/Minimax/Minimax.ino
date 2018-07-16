@@ -53,6 +53,12 @@ WebSocketClient webSocketClient;
 const String path = "";
 const String host = "192.168.4.1";
 
+const char* espSSID = "ESP-5a12f8";
+const char* espPASS = "NTUEE_AI";
+
+const char* mySSID = "Justin_And_Harvey";
+const char* myPASS = "27199342jh";
+
 extern uint8_t circle[];
 extern uint8_t x_bitmap[];
 
@@ -263,9 +269,18 @@ void loop() {
                 drawStartScreen();
             }
 
-            if (client.connected() && webSocketServer.handshake(client)) {
-                tft.fillScreen(BLACK);
-                gameState = HostMode;
+            client = server.available();
+            if (client && client.connected()) {
+                tft.print ("client connected");
+                if (webSocketServer.handshake(client)) {
+
+                    tft.fillScreen(BLACK);
+                    gameState = HostMode;
+                } else {
+                    tft.print ("handshake fail");
+                }
+            } else {
+                Serial.println ("client not connected");
             }
 
             
@@ -284,14 +299,32 @@ void loop() {
                     break;
                 }
             }
-            if (clickedI >= 0 && ssids[clickedI].substring(0, 3) == "ESP") {
-                WiFi.begin(ssids[clickedI].c_str(), "NTUEE_AI");
+            if (clickedI >= 0) {
+            // if (clickedI >= 0 && ssids[clickedI].substring(0, 3) == "ESP") {
+                Serial.print ("ssid: ");
+                Serial.println (ssids[clickedI].c_str());
+                // WiFi.begin(ssids[clickedI].c_str(), espPASS);
+                Serial.print ("strcmp: ");
+                Serial.print (strcmp(espSSID, ssids[clickedI].c_str()));
+                WiFi.begin(espSSID, espPASS);
+                // WiFi.begin(mySSID, myPASS);
+                Serial.print ("Start connecting");
+                while (WiFi.status() != WL_CONNECTED) {
+                    Serial.print ("Connecting to ");
+                    Serial.print (ssids[clickedI].c_str());
+                    delay(1000);
+                }
                 
-                webSocketClient.path = "";
-                webSocketClient.host = "192.168.4.1";
-                if (client.connect(host.c_str(), 80) && webSocketClient.handshake(client)) {
-                    tft.fillScreen(BLACK);
-                    gameState = ClientMode;
+                webSocketClient.path = "/";
+                webSocketClient.host = "ws://192.168.4.1";
+                if (client.connect(host.c_str(), 80)) {
+                    tft.print ("connect to server");
+                    if (webSocketClient.handshake(client)) {
+                        tft.fillScreen(BLACK);
+                        gameState = ClientMode;
+                    } else {
+                        tft.print ("handshake fail");
+                    }
                 } else {
                     tft.print("Fail to Connect");
                 }
@@ -364,7 +397,7 @@ void hostSetup() {
     // IPAddress gateway(192,168,4,9);
     // IPAddress subnet(255,255,255,0);
     // WiFi.softAPConfig(local_IP, gateway, subnet);
-    boolean result = WiFi.softAP(hostname.c_str(), "NTUEE_AI");
+    boolean result = WiFi.softAP(hostname.c_str(), espPASS);
     if(result == true) {
         Serial.println("Ready");
         Serial.print("My localIP: ");
@@ -374,7 +407,6 @@ void hostSetup() {
         tft.setCursor(30, 110);
         tft.print(hostname);
         server.begin();
-        client = server.available();
     }
     else {
         Serial.println("Failed!");
@@ -396,8 +428,14 @@ void clientSetup() {
     tft.setCursor(10, 10);
     tft.print("Choose a network");
 
+    // WiFi.begin("Justin_And_Harvey", "27199342jh");
+    // if (WiFi.status() == WL_CONNECTED) {
+    //     tft.print ("connect to Wifi");
+    // } else {
+    //     tft.print ("not connect to Wifi");
+    // }
     WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
+    // WiFi.disconnect();
     int n = WiFi.scanNetworks();
 
     for (int i = 0; i < 10; ++i)
@@ -485,7 +523,7 @@ void drawStartScreen()
     tft.drawRect(0,0,319,240,WHITE);
     
     //Print "8 Puzzle" Text
-    tft.setCursor(30,100);
+    tft.setCursor(30,80);
     tft.setTextColor(WHITE);
     tft.setTextSize(4);
     tft.print("Reversi");
