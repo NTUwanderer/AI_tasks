@@ -45,8 +45,13 @@ Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
 extern uint8_t circle[];
 extern uint8_t x_bitmap[];
 
-typedef unordered_map<unsigned long long, Step> StepMap;
-typedef unordered_map<unsigned long long, int>  HeuMap;
+// typedef short KeyType;
+typedef unsigned long long KeyType;
+typedef unsigned long long LongKeyType;
+typedef unsigned long long HashType;
+typedef unordered_map<KeyType, char> StepMap;
+typedef unordered_map<KeyType, char>  HeuMap;
+typedef unordered_map<LongKeyType, char>  FMap;
 
 enum GameState{startMode, playerMode, AStarMode, endMode};
 GameState gameState;
@@ -110,6 +115,7 @@ void loop() {
 
                 tft.setTextColor(BLUE);
                 tft.setCursor(10, 205);
+                Serial.println("Solved");
                 tft.print("Solved.");
             }
         } else if (gameState == playerMode) {
@@ -166,7 +172,6 @@ void loop() {
                 printNumber(currentState, p2);
 
                 currentState = takeStep(currentState, steps[i]);
-                delay(500);
             }
             if (currentState == goalState) {
                 printState(currentState);
@@ -220,7 +225,8 @@ void gameSetup() {
 
 void resetGame() {
     do {
-        initState = randomStepState(30);
+        initState = randomStepState(15);
+        // initState = randomState();
     } while (initState == goalState);
     currentState = initState;
 
@@ -339,7 +345,10 @@ void drawAStarGameOverScreen(int moves) {
     tft.setCursor(100,30);
     tft.setTextColor(RED);
     tft.setTextSize(3);
-    tft.print("You Won!");
+    if (moves == INT_MAX)
+        tft.print("You Loss");
+    else
+        tft.print("You Won!");
 
     tft.setCursor(10,100);
     tft.setTextColor(WHITE);
@@ -370,56 +379,74 @@ void createPlayAgainButton()
     tft.print("Play Again");
 }
 
-int A_star_search(State initState, int cutoff, vector<Step>& steps) {
-    myQueue<State> queue;
-    queue.push(initState);
+int A_star_search(State state, int cutoff, vector<Step>& steps) {
+    myQueue<HashType> queue;
+    queue.push(getHash(state));
     StepMap prevStep;
     HeuMap explored; // key to heuristic f
-    HeuMap frontier; // key to heuristic f
-    frontier[getKey(initState)] = initState.f;
+    FMap frontier; // key to heuristic f
+    frontier[getLongKey(state)] = state.f;
 
     int count = 1;
+    int maxQueueSize = 0;
+    int maxFrontierSize = 0;
+
     while (!(queue.empty())) {
-        State s = queue.top();
+        yield();
+        Serial.print ("queue.size: ");
+        Serial.print (queue.size());
+        Serial.print (", explored.size: ");
+        Serial.println (explored.size());
+        if (queue.size() != frontier.size()) {
+            break;
+        }
+        maxQueueSize = max(maxQueueSize, int(queue.size()));
+        maxFrontierSize = max(maxFrontierSize, int(frontier.size()));
+
+        State s = getState(queue.top());
         queue.pop();
 
         explored[getKey(s)] = s.h;
-        frontier.erase(getKey(s));
+        frontier.erase(getLongKey(s));
 
         if (s == goalState) {
-            unsigned long long key = getKey(s);
+            KeyType key = getKey(s);
             while (prevStep.find(key) != prevStep.end()) {
-                Step step = prevStep[key];
+                Step step = getStep(prevStep[key]);
                 steps.push_back(step);
                 s = takeStep(s, step, true);
                 key = getKey(s);
             }
             reverse(steps.begin(), steps.end());
-            return count;
+
+            break;
         }
 
         vector<Step> avSteps;
         getAvailableSteps(s, avSteps);
 
         for (int i = 0; i < avSteps.size(); ++i) {
+            KeyType origKey = getKey(s);
             Step step = avSteps[i];
+
             State successor = takeStep(s, step);
-            unsigned long long key = getKey(successor);
+            KeyType key = getKey(successor);
+            LongKeyType longKey = getLongKey(successor);
             if (explored.find(key) != explored.end())
                 continue;
 
-            if (frontier.find(key) != explored.end()) {
-                if (successor.f < frontier[key]) {
-                    prevStep[key] = step;
-                    frontier[key] = successor.f;
-                    queue.remove(successor);
-                    queue.push(successor);
+            if (frontier.find(longKey) != frontier.end()) {
+                if (successor.f < frontier[longKey]) {
+                    prevStep[key] = getHash(step);
+                    frontier[longKey] = successor.f;
+                    queue.remove(getHash(successor));
+                    queue.push(getHash(successor));
                 }
             } else {
                 ++count;
-                prevStep[key] = step;
-                frontier[key] = successor.f;
-                queue.push(successor);
+                prevStep[key] = getHash(step);
+                frontier[longKey] = successor.f;
+                queue.push(getHash(successor));
             }
         }
     }
