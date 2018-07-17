@@ -36,17 +36,24 @@ int A_star_search(State initState, int cutoff, vector<Step>& steps) {
     while (!(queue->empty())) {
         if (queue->size() != frontier.size()) {
             printf ("qs: %u, fs: %u\n", queue->size(), frontier.size());
+            break;
         }
         maxQueueSize = max(maxQueueSize, int(queue->size()));
         maxFrontierSize = max(maxFrontierSize, int(frontier.size()));
 
         State s = getState(queue->top());
+        if (!isLegal(s)) {
+            printf ("not legal\n");
+            break;
+        }
         queue->pop();
 
         explored[getKey(s)] = s.h;
         frontier.erase(getLongKey(s));
 
         if (s == goalState) {
+            printf ("should find\n");
+            break;
             KeyType key = getKey(s);
             while (prevStep.find(key) != prevStep.end()) {
                 Step step = getStep(prevStep[key]);
@@ -90,7 +97,7 @@ int A_star_search(State initState, int cutoff, vector<Step>& steps) {
             }
         }
 
-        while (queue->size() > 2000) {
+        while (queue->size() > 3000) {
             unsigned origSize = queue->size();
             myQueue<HashType>* queue2 = new myQueue<HashType>();
 
@@ -104,13 +111,17 @@ int A_star_search(State initState, int cutoff, vector<Step>& steps) {
                 KeyType key = getKey(state);
                 LongKeyType longKey = getLongKey(state);
                 queue->pop();
-
                 frontier.erase(longKey);
-                State prevState = takeStep(state, getStep(prevStep[key]));
+                if (explored.find(key) != explored.end())
+                    explored.erase(key);
+
+                State prevState = takeStep(state, getStep(prevStep[key]), true);
                 prevStep.erase(key);
-                if (frontier.find(getLongKey(prevState)) != frontier.end()) {
-                    queue2->push(getLongKey(prevState));
+                if (frontier.find(getLongKey(prevState)) == frontier.end()) {
+                    queue2->push(getHash(prevState));
                     frontier[getLongKey(prevState)] = prevState.f;
+                    // if (prevState.f > state.f)
+                    //     printf ("???\n");
                 }
             }
             delete queue;

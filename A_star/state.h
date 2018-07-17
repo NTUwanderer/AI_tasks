@@ -61,7 +61,8 @@ bool operator!= (const State& s1, const State& s2) {
 
 int findPos(State s, int n);
 int heuristic(State s);
-bool solvable(State s);
+bool isLegal(const State& s);
+bool solvable(const State& s);
 State randomStepState(int step);
 State randomState();
 void drawHorizontalLine(int y);
@@ -109,7 +110,22 @@ int heuristic(State s) {
     return h;
 }
 
-bool solvable(State s) {
+bool isLegal(const State& s) {
+    if (s.g < 0)
+        return false;
+
+    int count = 0;
+    for (int i = 0; i < 9; ++i) {
+        if (findPos(s, i) == 0)
+            ++count;
+    }
+    if (count != 1)
+        return false;
+
+    return solvable(s);
+}
+
+bool solvable(const State& s) {
     int inversion = 0;
     for (int i = 1; i < 9; ++i) {
         if (s.pos[i] == 0)
@@ -249,8 +265,14 @@ State getState(unsigned long long hash) {
 
 State takeStep(State s, Step step, bool reverse) {
     State newS = s;
-    if (s.pos[step.p1] != 0 && s.pos[step.p2] != 0)
-        printf ("???\n");
+    if (s.pos[step.p1] != 0 && s.pos[step.p2] != 0) {
+        printf ("Step ???");
+        if (reverse)
+            printf ("-\n");
+        else
+            printf ("+\n");
+
+    }
     swap(newS.pos[step.p1], newS.pos[step.p2]);
 
     if (reverse)
