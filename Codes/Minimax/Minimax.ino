@@ -53,7 +53,7 @@ WebSocketClient webSocketClient;
 const String path = "";
 const String host = "192.168.4.1";
 
-const char* espSSID = "ESP-5a12f8";
+const char* espSSID = "ESP-5A12F8";
 const char* espPASS = "NTUEE_AI";
 
 const char* mySSID = "Justin_And_Harvey";
@@ -306,7 +306,7 @@ void loop() {
                 // WiFi.begin(ssids[clickedI].c_str(), espPASS);
                 Serial.print ("strcmp: ");
                 Serial.print (strcmp(espSSID, ssids[clickedI].c_str()));
-                WiFi.begin(espSSID, espPASS);
+                WiFi.begin(ssids[clickedI].c_str(), espPASS);
                 // WiFi.begin(mySSID, myPASS);
                 Serial.print ("Start connecting");
                 while (WiFi.status() != WL_CONNECTED) {
@@ -316,7 +316,7 @@ void loop() {
                 }
                 
                 webSocketClient.path = "/";
-                webSocketClient.host = "ws://192.168.4.1";
+                webSocketClient.host = "192.168.4.1";
                 if (client.connect(host.c_str(), 80)) {
                     tft.print ("connect to server");
                     if (webSocketClient.handshake(client)) {
@@ -391,7 +391,9 @@ void hostSetup() {
 
     WiFi.mode(WIFI_AP);
     String hostname(HOSTNAME);
-    hostname += String(ESP.getChipId(), HEX);
+    String id = String(ESP.getChipId(), HEX);
+    id.toUpperCase();
+    hostname += id;
     // local ip: 192.168.4.1
     // IPAddress local_IP(192,168,4,22);
     // IPAddress gateway(192,168,4,9);
