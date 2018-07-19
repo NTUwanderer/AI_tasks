@@ -225,7 +225,7 @@ void gameSetup() {
 
 void resetGame() {
     do {
-        initState = randomStepState(15);
+        initState = randomStepState(14);
         // initState = randomState();
     } while (initState == goalState);
     currentState = initState;
@@ -380,16 +380,14 @@ void createPlayAgainButton()
 }
 
 int A_star_search(State state, int cutoff, vector<Step>& steps) {
-    myQueue<HashType> queue;
-    queue.push(getHash(state));
+    myQueue<State> queue;
+    queue.push(state);
     StepMap prevStep;
     HeuMap explored; // key to heuristic f
     FMap frontier; // key to heuristic f
     frontier[getLongKey(state)] = state.f;
 
     int count = 1;
-    int maxQueueSize = 0;
-    int maxFrontierSize = 0;
 
     while (!(queue.empty())) {
         yield();
@@ -400,10 +398,8 @@ int A_star_search(State state, int cutoff, vector<Step>& steps) {
         if (queue.size() != frontier.size()) {
             break;
         }
-        maxQueueSize = max(maxQueueSize, int(queue.size()));
-        maxFrontierSize = max(maxFrontierSize, int(frontier.size()));
 
-        State s = getState(queue.top());
+        State s = queue.top();
         queue.pop();
 
         explored[getKey(s)] = s.h;
@@ -439,14 +435,14 @@ int A_star_search(State state, int cutoff, vector<Step>& steps) {
                 if (successor.f < frontier[longKey]) {
                     prevStep[key] = getHash(step);
                     frontier[longKey] = successor.f;
-                    queue.remove(getHash(successor));
-                    queue.push(getHash(successor));
+                    queue.remove(successor);
+                    queue.push(successor);
                 }
             } else {
                 ++count;
                 prevStep[key] = getHash(step);
                 frontier[longKey] = successor.f;
-                queue.push(getHash(successor));
+                queue.push(successor);
             }
         }
     }
