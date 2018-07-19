@@ -1,8 +1,11 @@
 #include <queue>
+#include <vector>
 
-template<typename T>
-class myQueue : public std::priority_queue<T, std::vector<T>>
-{
+#include "state.h"
+
+template<typename T,
+         typename Sequence = std::vector<T> >
+class myQueue : public std::priority_queue<T, Sequence, myHashComparison> {
 public:
 
     bool edit(const T& value) {
@@ -20,7 +23,7 @@ public:
 
     bool remove(const T& value) {
         for (auto it = this->c.begin(); it != this->c.end(); ++it) {
-            if (*it == value) {
+            if (((*it << 28) >> 28) == ((value << 28) >> 28)) {
                 this->c.erase(it);
                 std::make_heap(this->c.begin(), this->c.end(), this->comp);
                 return true;
