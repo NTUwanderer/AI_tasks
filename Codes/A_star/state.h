@@ -1,3 +1,6 @@
+#ifndef ASTAR_STATE
+#define ASTAR_STATE
+
 #include <stdlib.h>
 #include <vector>
 #include <math.h>
@@ -22,6 +25,21 @@ using namespace std;
 
 String num_str[9] = {" ", "1", "2", "3", "4", "5", "6", "7", "8"};
 
+class myHashComparison {
+    bool reverse;
+public:
+    myHashComparison(const bool& revparam=true) {
+        reverse=revparam;
+    }
+    bool operator() (const unsigned long long& lhs, const unsigned long long& rhs) const {
+        unsigned long long l = (lhs >> 36);
+        unsigned long long r = (rhs >> 36);
+        if (reverse) return (l>r);
+        else return (l<r);
+    }
+};
+
+
 struct State {
     int pos[9]; // 1~8, 0 means empty
     int g;
@@ -29,6 +47,8 @@ struct State {
     int f;
 
 } goalState;
+
+unsigned long long mask = 15;
 
 bool operator< (const State& s1, const State& s2) {
     return s1.f > s2.f;
@@ -62,6 +82,8 @@ void printState(State s);
 void getAvailableSteps(State s, vector<Step>& steps);
 bool getLegalStep(State s, int index, Step& step);
 unsigned long long getKey(State s);
+unsigned long long getLongKey(State s);
+unsigned long long getHash(State s);
 State takeStep(State s, Step step, bool reverse = false);
 
 int findPos(State s, int n) {
@@ -112,14 +134,19 @@ bool solvable(State s) {
 
 State randomStepState(int step) {
     State s = goalState;
+    Step prevStep = getStep(0, 0);
 
     do {
         for (int i = 0; i < step; ++i) {
             vector<Step> steps;
             getAvailableSteps(s, steps);
 
-            size_t j = rand() / (RAND_MAX / steps.size() + 1);
+            size_t j;
+            do {
+                j = rand() / (RAND_MAX / steps.size() + 1);
+            } while (prevStep == steps[j]);
             s = takeStep(s, steps[j]);
+            prevStep = steps[j];
         }
     } while (s == goalState);
     s.g = 0;
@@ -230,6 +257,44 @@ unsigned long long getKey(State s) {
     return key;
 }
 
+unsigned long long getLongKey(State s) {
+    unsigned long long key = 0;
+    for (int i = 0; i < 9; ++i) {
+        unsigned long long n = s.pos[i];
+        n <<= i * 4;
+        key ^= n;
+        // key ^= zKey[i * 9 + s.pos[i]];
+    }
+
+    return key;
+}
+
+unsigned long long getHash(State s) {
+    unsigned long long key = s.f;
+    key <<= 36;
+    for (int i = 0; i < 9; ++i) {
+        unsigned long long n = s.pos[i];
+        n <<= i * 4;
+        key ^= n;
+    }
+
+    return key;
+}
+
+State getState(unsigned long long hash) {
+    State s;
+    for (int i = 0; i < 9; ++i) {
+        s.pos[i] = hash & mask;
+        hash >>= 4;
+    }
+
+    s.f = hash;
+    s.h = heuristic(s);
+    s.g = s.f - s.h;
+
+    return s;
+}
+
 State takeStep(State s, Step step, bool reverse) {
     State newS = s;
     swap(newS.pos[step.p1], newS.pos[step.p2]);
@@ -275,4 +340,6 @@ bool getLegalStep(State s, int index, Step& step) {
     }
     return false;
 }
+
+#endif
 

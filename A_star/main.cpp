@@ -97,6 +97,7 @@ int A_star_search(State initState, int cutoff, vector<Step>& steps) {
             }
         }
 
+        continue;
         while (queue->size() > 3000) {
             unsigned origSize = queue->size();
             myQueue<HashType>* queue2 = new myQueue<HashType>();
