@@ -80,8 +80,8 @@ State getState(const String& str) {
         int p = (int)str[i * 2];
         int e = (int)str[i * 2 + 1];
         for (int j = 7; j >= 0; --j) {
-            s.pos[i][j]   = p & mask == 1 ? true : false;
-            s.exist[i][j] = e & mask == 1 ? true : false;
+            s.pos[i][j]   = (p & mask) == 1 ? true : false;
+            s.exist[i][j] = (e & mask) == 1 ? true : false;
             p >>= 1;
             e >>= 1;
         }
