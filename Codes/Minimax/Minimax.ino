@@ -4,8 +4,6 @@
 #include <Adafruit_ILI9341.h>
 #include <XPT2046_Touchscreen.h>
 #include <ESP8266WiFi.h>
-#include <WebSocketServer.h>
-#include <WebSocketClient.h>
 
 #include <queue>
 #include <limits.h>
@@ -47,14 +45,13 @@ Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
 #define HOSTNAME "ESP-"
 
 WiFiServer server(80);
-WebSocketServer webSocketServer;
 WiFiClient client;
-WebSocketClient webSocketClient;
-const String path = "";
-const String host = "192.168.4.1";
+const char* defaultIP = "192.168.4.1";
 
 const char* espSSID = "ESP-5A12F8";
 const char* espPASS = "NTUEE_AI";
+
+const String startPattern = "Start:";
 
 const char* mySSID = "Justin_And_Harvey";
 const char* myPASS = "27199342jh";
@@ -75,6 +72,7 @@ State initState, currentState;
 int countMinimax;
 bool availables[8][8];
 bool redTurn;
+int moveX, moveY;
 const int depth = 5;
 
 int minimax(State& s, const bool (&availables)[8][8], bool redTurn, int depth, int alpha = INT_MIN, int beta = INT_MAX);
@@ -98,7 +96,11 @@ void setup() {
 
 void loop() {
     boolean istouched = ts.touched();
-    if (istouched || (gameState == PvEMode && !redTurn) || gameState == MinimaxMode) {
+    if (istouched || (gameState == PvEMode && !redTurn) ||
+            gameState == MinimaxMode ||
+            gameState == HostWaitMode ||
+            gameState == HostMode ||
+            gameState == ClientMode) {
         istouched = false;
         TS_Point p0 = ts.getPoint(),p;  //Get touch point
 
@@ -263,33 +265,29 @@ void loop() {
 
         } else if (gameState == HostWaitMode) {
 
-            if (resetButton.pressed(p.x, p.y)) {
+            if (istouched && resetButton.pressed(p.x, p.y)) {
                 WiFi.softAPdisconnect(true);
                 gameState = startMode;
                 drawStartScreen();
+                return;
             }
 
             client = server.available();
             if (client && client.connected()) {
                 tft.print ("client connected");
-                if (webSocketServer.handshake(client)) {
-
-                    tft.fillScreen(BLACK);
-                    gameState = HostMode;
-                } else {
-                    tft.print ("handshake fail");
-                }
-            } else {
-                Serial.println ("client not connected");
+                tft.fillScreen(BLACK);
+                resetGame();
+                printState(currentState, redTurn);
+                gameState = HostMode;
             }
-
             
         } else if (gameState == ClientConnectMode) {
 
-            if (resetButton.pressed(p.x, p.y)) {
+            if (istouched && resetButton.pressed(p.x, p.y)) {
                 WiFi.disconnect(true);
                 gameState = startMode;
                 drawStartScreen();
+                return;
             }
 
             int clickedI = -1;
@@ -303,71 +301,132 @@ void loop() {
             // if (clickedI >= 0 && ssids[clickedI].substring(0, 3) == "ESP") {
                 Serial.print ("ssid: ");
                 Serial.println (ssids[clickedI].c_str());
-                // WiFi.begin(ssids[clickedI].c_str(), espPASS);
-                Serial.print ("strcmp: ");
-                Serial.print (strcmp(espSSID, ssids[clickedI].c_str()));
-                WiFi.begin(ssids[clickedI].c_str(), espPASS);
-                // WiFi.begin(mySSID, myPASS);
-                Serial.print ("Start connecting");
-                while (WiFi.status() != WL_CONNECTED) {
+                Serial.print ("WL_CONNECTED: ");
+                Serial.println (WL_CONNECTED);
+                Serial.print ("status: ");
+                Serial.println (WiFi.status());
+                do {
                     Serial.print ("Connecting to ");
-                    Serial.print (ssids[clickedI].c_str());
-                    delay(1000);
-                }
+                    Serial.println (ssids[clickedI].c_str());
+
+                    WiFi.begin(ssids[clickedI].c_str(), espPASS);
+                    // WiFi.begin(mySSID, myPASS);
+                    Serial.println ("after wifi begin");
+
+                    delay(5000);
+                } while (WiFi.status() != WL_CONNECTED);
                 
-                webSocketClient.path = "/";
-                webSocketClient.host = "192.168.4.1";
-                if (client.connect(host.c_str(), 80)) {
-                    tft.print ("connect to server");
-                    if (webSocketClient.handshake(client)) {
-                        tft.fillScreen(BLACK);
-                        gameState = ClientMode;
-                    } else {
-                        tft.print ("handshake fail");
-                    }
+                tft.setTextColor(RED);
+                if (client.connect(defaultIP, 80)) {
+                    tft.print ("Connected to server ");
+                    tft.fillScreen(BLACK);
+                    resetGame();
+                    printState(currentState, redTurn);
+                    gameState = ClientMode;
                 } else {
                     tft.print("Fail to Connect");
                 }
             }
         } else if (gameState == HostMode) {
 
-            if (resetButton.pressed(p.x, p.y)) {
+            if (istouched && resetButton.pressed(p.x, p.y)) {
                 WiFi.softAPdisconnect(true);
                 gameState = startMode;
                 drawStartScreen();
+                return;
             }
-            String data;
-            while (client.connected()) {
-                data = webSocketServer.getData();
- 
-                if (data.length() > 0) {
-                   Serial.println(data);
-                   webSocketServer.sendData("I'm host");
-                }
-                delay(1000);
+            if (!(client && client.connected())) {
+                Serial.println("The client disconnected");
+                tft.println("The client disconnected");
+                delay(3000);
+                gameState = endMode;
+                drawGameOverScreen(countResult(currentState));
+                return;
             }
-            Serial.println("The client disconnected");
-            delay(3000);
 
+            if (redTurn) {
+                availablePlaces(currentState, availables, redTurn);
+                minimax(currentState, availables, redTurn, depth);
+                redTurn = !redTurn;
+
+                if (availablePlaces(currentState, availables, redTurn) == 0) {
+                    redTurn = !redTurn;
+                }
+                printState(currentState, redTurn);
+
+                Serial.println("Sending");
+                String signal = createSignal();
+                sendSignal(signal);
+                Serial.println("Sended");
+
+                if (availablePlaces(currentState, availables, redTurn) == 0 && availablePlaces(currentState, availables, !redTurn) == 0) {
+                    delay(700);
+                    gameState = endMode;
+                    drawGameOverScreen(countResult(currentState));
+                }
+            } else {
+                String signal;
+                while ((signal = readSignal()) == "") {
+                    delay(200);
+                }
+                tft.println ("signal: " + signal);
+                if (!updateState(signal)) {
+                    tft.println ("Something's wrong, aborting...");
+                    delay(5000);
+                    gameState = endMode;
+                    drawGameOverScreen(countResult(currentState));
+                }
+            }
         } else if (gameState == ClientMode) {
 
-            if (resetButton.pressed(p.x, p.y)) {
-                WiFi.disconnect(true);
+            if (istouched && resetButton.pressed(p.x, p.y)) {
+                WiFi.softAPdisconnect(true);
                 gameState = startMode;
                 drawStartScreen();
+                return;
             }
-            String data;
-            while (client.connected()) {
-                webSocketClient.sendData("I'm client");
- 
-                webSocketClient.getData(data);
-                if (data.length() > 0) {
-                   Serial.println(data);
+            if (!(client && client.connected())) {
+                Serial.println("The host disconnected");
+                tft.println("The host disconnected");
+                delay(3000);
+                gameState = endMode;
+                drawGameOverScreen(countResult(currentState));
+                return;
+            }
+
+            if (!redTurn) {
+                availablePlaces(currentState, availables, redTurn);
+                minimax(currentState, availables, redTurn, depth);
+                redTurn = !redTurn;
+
+                if (availablePlaces(currentState, availables, redTurn) == 0) {
+                    redTurn = !redTurn;
                 }
-                delay(1000);
+                printState(currentState, redTurn);
+
+                String signal = createSignal();
+                Serial.println("Sending: " + signal);
+                sendSignal(signal);
+                Serial.println("Sended");
+
+                if (availablePlaces(currentState, availables, redTurn) == 0 && availablePlaces(currentState, availables, !redTurn) == 0) {
+                    delay(700);
+                    gameState = endMode;
+                    drawGameOverScreen(countResult(currentState));
+                }
+            } else {
+                String signal;
+                while ((signal = readSignal()) == "") {
+                    delay(200);
+                }
+                tft.println ("signal: " + signal);
+                if (!updateState(signal)) {
+                    tft.println ("Something's wrong, aborting...");
+                    delay(5000);
+                    gameState = endMode;
+                    drawGameOverScreen(countResult(currentState));
+                }
             }
-            Serial.println("The host disconnected");
-            delay(3000);
 
         } else if (gameState == endMode) {
             gameState = startMode;
@@ -379,6 +438,101 @@ void loop() {
 
         delay(10);  
     }
+}
+
+String readSignal() {
+    char c;
+    String data = "";
+    client.println("I'm host");
+    while (client.connected()) {
+        c = client.read();
+        if (c == '\n') {
+            break;
+        }
+        if (c != -1) {
+            data += c;
+        }
+        delay(200);
+    }
+    int index = data.indexOf(startPattern);
+    if (index == -1)
+        return "";
+
+    return data.substring(index + startPattern.length());
+}
+
+String sendSignal(String signal) {
+    Serial.println("signal: " + signal);
+    Serial.print("signal length: ");
+    Serial.println(signal.length());
+    
+    client.println(startPattern + signal);
+}
+
+// false: something's wrong
+bool updateState(String signal) {
+    bool rTurn;
+    int index, mX, mY;
+    State newS;
+
+    index = signal.indexOf("RT:");
+    rTurn = signal[index+3] == 'T';
+    index = signal.indexOf("MV:");
+    mX = (int)signal[index+3];
+    mY = (int)signal[index+4];
+    index = signal.indexOf("ST:");
+    newS = getState(signal.substring(index, index+16));
+    if (takeStep(currentState, mX, mY, redTurn) != newS) {
+        Serial.println ("state not match: ");
+        Serial.println (signal.substring(index, index+16));
+        tft.println ("state not match!");
+        delay(5000);
+        printState(newS, redTurn);
+        return false;
+    }
+
+    redTurn = !redTurn;
+
+    if (availablePlaces(newS, availables, redTurn) == 0) {
+        redTurn = !redTurn;
+    }
+
+    if (redTurn != rTurn) {
+        Serial.println ("redTurn not match!");
+        tft.println ("redTurn not match!");
+        return false;
+    }
+    currentState = newS;
+
+    return true;
+}
+
+String createSignal() {
+    Serial.print ("moveX:");
+    Serial.println (moveX);
+    Serial.print ("testI char:");
+    int testI = 65;
+    char c = (char)testI;
+    Serial.println (c);
+    String signal = "";
+    signal += "RT:";
+    if (redTurn)
+        signal += "T";
+    else
+        signal += "F";
+    signal += ",MV:";
+    signal = String(signal + (char)moveX);
+    signal = String(signal + (char)moveY);
+    signal += ",ST:";
+
+    Serial.println("before signal: " + signal);
+    String stateStr = toString(currentState);
+    Serial.print("stateStr length: ");
+    Serial.println(stateStr.length());
+    
+    signal += stateStr;
+
+    return signal;
 }
 
 void hostSetup() {
@@ -398,16 +552,18 @@ void hostSetup() {
     // IPAddress local_IP(192,168,4,22);
     // IPAddress gateway(192,168,4,9);
     // IPAddress subnet(255,255,255,0);
-    // WiFi.softAPConfig(local_IP, gateway, subnet);
-    boolean result = WiFi.softAP(hostname.c_str(), espPASS);
+
+    bool result = WiFi.softAP(hostname.c_str(), espPASS);
     if(result == true) {
         Serial.println("Ready");
-        Serial.print("My localIP: ");
-        Serial.println(WiFi.softAPIP());
         tft.setCursor(10, 80);
         tft.print("My SSID:");
         tft.setCursor(30, 110);
         tft.print(hostname);
+        tft.setCursor(10, 140);
+        tft.print("My softAPIP:");
+        tft.setCursor(30, 170);
+        tft.print(WiFi.softAPIP());
         server.begin();
     }
     else {
@@ -430,14 +586,9 @@ void clientSetup() {
     tft.setCursor(10, 10);
     tft.print("Choose a network");
 
-    // WiFi.begin("Justin_And_Harvey", "27199342jh");
-    // if (WiFi.status() == WL_CONNECTED) {
-    //     tft.print ("connect to Wifi");
-    // } else {
-    //     tft.print ("not connect to Wifi");
-    // }
     WiFi.mode(WIFI_STA);
-    // WiFi.disconnect();
+    WiFi.disconnect();
+
     int n = WiFi.scanNetworks();
 
     for (int i = 0; i < 10; ++i)
@@ -448,7 +599,6 @@ void clientSetup() {
         ssids[i] = WiFi.SSID(i);
         tft.setCursor(ssidButtons[i].x + 5, ssidButtons[i].y + 5);
         tft.print(ssids[i].substring(0, 10));
-        // tft.print(WiFi.SSID(i).substr(0, 10));
     }
 }
 
@@ -700,7 +850,10 @@ int minimax(State& s, const bool (&availables)[8][8], bool redTurn, int depth, i
         bestHeu = minimax(newS, newAvailable, !redTurn, depth - 1);
     } else {
         s = takeStep(s, bestX, bestY, redTurn);
+        moveX = bestX;
+        moveY = bestY;
     }
 
     return bestHeu;
 } 
+

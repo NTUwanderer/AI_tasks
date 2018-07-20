@@ -40,6 +40,8 @@ bool operator!= (const State& s1, const State& s2) {
     return !(s1 == s2);
 }
 
+String toString(const State& s);
+State getState(const String& str);
 char* myToChars(int i);
 char* myToChars_six(int i);
 bool inBoard(int x, int y);
@@ -53,6 +55,40 @@ void printNumber(const State& s, int i, int j);
 void printState(State& s);
 State takeStep(const State& s, int i, int j, bool redTurn);
 
+String toString(const State& s) {
+    String str = "";
+    for (int i = 0; i < 8; ++i) {
+        int p = 0;
+        int e = 0;
+        for (int j = 0; j < 8; ++j) {
+            p <<= 1;
+            e <<= 1;
+            p += s.pos[i][j] ? 1 : 0;
+            e += s.exist[i][j] ? 1 : 0;
+        }
+        str = String(str + (char)p);
+        str = String(str + (char)e);
+    }
+
+    return str;
+}
+State getState(const String& str) {
+    State s;
+
+    int mask = 1;
+    for (int i = 0; i < 8; ++i) {
+        int p = (int)str[i * 2];
+        int e = (int)str[i * 2 + 1];
+        for (int j = 7; j >= 0; --j) {
+            s.pos[i][j]   = p & mask == 1 ? true : false;
+            s.exist[i][j] = e & mask == 1 ? true : false;
+            p >>= 1;
+            e >>= 1;
+        }
+    }
+
+    return s;
+}
 char* myToChars(int i) {
     char buffer [50];
     sprintf (buffer, "%3i", i);
