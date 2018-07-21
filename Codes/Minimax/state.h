@@ -28,7 +28,7 @@ bool operator== (const State& s1, const State& s2) {
         for (int j = 0; j < 8; ++j) {
             if (s1.exist[i][j] != s2.exist[i][j])
                 return false;
-            if (s1.exist[i][j] && s1.pos[i][j] != s2.pos[i][j])
+            if (s1.exist[i][j] && (s1.pos[i][j] != s2.pos[i][j]))
                 return false;
         }
     }
@@ -49,12 +49,42 @@ int countResult(const State& s);
 int availablePlaces(const State& s, bool (&available)[8][8], bool redTurn);
 int heuristic(State& s);
 bool isEnd(const State& s);
+void showHost(bool host);
 void drawHorizontalLine(int y);
 void drawVerticalLine(int x);
 void printNumber(const State& s, int i, int j);
-void printState(State& s);
+void printState(State& s, bool redTurn);
 State takeStep(const State& s, int i, int j, bool redTurn);
 
+String toString(const State& s) {
+    String str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    for (int i = 0; i < 8; ++i) {
+        for (int j = 0; j < 8; ++j) {
+            int c = 0;
+            c += (s.pos[i][j] ? 1 : 0);
+            c += (s.exist[i][j] ? 2 : 0);
+            str[i * 8 + j] = 'A' + c;
+        }
+    }
+
+    return str;
+}
+State getState(const String& str) {
+    State s;
+
+    int mask2 = 2;
+    int mask = 1;
+    for (int i = 0; i < 8; ++i) {
+        for (int j = 0; j < 8; ++j) {
+            int c = str[i * 8 + j] - 'A';
+            s.pos[i][j]   = (c & mask)  > 0 ? true : false;
+            s.exist[i][j] = (c & mask2) > 0 ? true : false;
+        }
+    }
+
+    return s;
+}
+/*
 String toString(const State& s) {
     String str = "";
     for (int i = 0; i < 8; ++i) {
@@ -89,6 +119,7 @@ State getState(const String& str) {
 
     return s;
 }
+*/
 char* myToChars(int i) {
     char buffer [50];
     sprintf (buffer, "%3i", i);
@@ -194,6 +225,19 @@ bool isEnd(const State& s) {
     int redMoves = availablePlaces(s, available, true);
     int blueMoves = availablePlaces(s, available, false);
     return (redMoves == 0 && blueMoves == 0);
+}
+
+void showHost(bool host) {
+
+    tft.setCursor(10, 125);
+    tft.setTextSize(2);
+    if (host) {
+        tft.setTextColor(RED);
+        tft.print("I'm\n Host");
+    } else {
+        tft.setTextColor(BLUE);
+        tft.print("I'm\n Client");
+    }
 }
 
 void drawVerticalLine(int x) {

@@ -344,6 +344,11 @@ void loop() {
                 return;
             }
 /*
+            State sameS = getState(toString(currentState));
+            if (sameS != currentState) {
+                Serial.print ("Not equal state");
+                printState(sameS, !redTurn);
+            }
     client.println(startPattern + "");
     String signal = "";
     while ((signal = readSignal()) == "") {
@@ -378,12 +383,11 @@ void loop() {
                     redTurn = !redTurn;
                 }
                 printState(currentState, redTurn);
+                showHost(true);
 
-                Serial.println("Sending");
                 String signal = createSignal();
                 client.println(startPattern + signal);
                 // sendSignal(client, signal);
-                Serial.println("Sended");
 
                 if (availablePlaces(currentState, availables, redTurn) == 0 && availablePlaces(currentState, availables, !redTurn) == 0) {
                     delay(700);
@@ -395,12 +399,20 @@ void loop() {
                 while (client.connected() && (signal = readSignal()) == "") {
                     delay(200);
                 }
-                tft.println ("signal: " + signal);
                 if (!updateState(signal)) {
                     tft.println ("Something's wrong, aborting...");
                     delay(5000);
                     gameState = endMode;
                     drawGameOverScreen(countResult(currentState));
+                } else {
+                    printState(currentState, redTurn);
+                    showHost(true);
+
+                    if (availablePlaces(currentState, availables, redTurn) == 0 && availablePlaces(currentState, availables, !redTurn) == 0) {
+                        delay(700);
+                        gameState = endMode;
+                        drawGameOverScreen(countResult(currentState));
+                    }
                 }
             }
         } else if (gameState == ClientMode) {
@@ -455,12 +467,11 @@ void loop() {
                     redTurn = !redTurn;
                 }
                 printState(currentState, redTurn);
+                showHost(false);
 
                 String signal = createSignal();
-                Serial.println("Sending: " + signal);
                 client.println(startPattern + signal);
                 // sendSignal(client, signal);
-                Serial.println("Sended");
 
                 if (availablePlaces(currentState, availables, redTurn) == 0 && availablePlaces(currentState, availables, !redTurn) == 0) {
                     delay(700);
@@ -472,12 +483,20 @@ void loop() {
                 while (client.connected() && (signal = readSignal()) == "") {
                     delay(200);
                 }
-                tft.println ("signal: " + signal);
                 if (!updateState(signal)) {
                     tft.println ("Something's wrong, aborting...");
                     delay(5000);
                     gameState = endMode;
                     drawGameOverScreen(countResult(currentState));
+                } else {
+                    printState(currentState, redTurn);
+                    showHost(false);
+
+                    if (availablePlaces(currentState, availables, redTurn) == 0 && availablePlaces(currentState, availables, !redTurn) == 0) {
+                        delay(700);
+                        gameState = endMode;
+                        drawGameOverScreen(countResult(currentState));
+                    }
                 }
             }
 
@@ -515,10 +534,6 @@ String readSignal() {
 }
 
 String sendSignal(WiFiClient& client, String signal) {
-    Serial.println("signal: " + signal);
-    Serial.print("signal length: ");
-    Serial.println(signal.length());
-    
     client.println(startPattern + signal);
 }
 
@@ -529,20 +544,26 @@ bool updateState(String signal) {
     State newS;
 
     index = signal.indexOf("RT:");
+    if (index == -1)
+        return false;
     rTurn = signal[index+3] == 'T';
     index = signal.indexOf("MV:");
-    mX = (int)signal[index+3];
-    mY = (int)signal[index+4];
+    if (index == -1)
+        return false;
+    mX = (int)(signal[index+3] - '0');
+    mY = (int)(signal[index+4] - '0');
     index = signal.indexOf("ST:");
-    newS = getState(signal.substring(index, index+16));
+    if (index == -1)
+        return false;
+    newS = getState(signal.substring(index+3, index+3+64));
     currentState = takeStep(currentState, mX, mY, redTurn);
     if (currentState != newS) {
         Serial.println ("state not match: ");
-        Serial.println (signal.substring(index, index+16));
+        Serial.println (signal.substring(index, index+64));
         tft.println ("state not match!");
-        delay(500);
-        // printState(newS, redTurn);
-        // return false;
+        delay(2000);
+        printState(newS, redTurn);
+        return false;
     }
 
     redTurn = !redTurn;
@@ -561,12 +582,6 @@ bool updateState(String signal) {
 }
 
 String createSignal() {
-    Serial.print ("moveX:");
-    Serial.println (moveX);
-    Serial.print ("testI char:");
-    int testI = 65;
-    char c = (char)testI;
-    Serial.println (c);
     String signal = "";
     signal += "RT:";
     if (redTurn)
@@ -574,15 +589,11 @@ String createSignal() {
     else
         signal += "F";
     signal += ",MV:";
-    signal = String(signal + (char)moveX);
-    signal = String(signal + (char)moveY);
+    signal = String(signal + (char)('0' + moveX));
+    signal = String(signal + (char)('0' + moveY));
     signal += ",ST:";
 
-    Serial.println("before signal: " + signal);
     String stateStr = toString(currentState);
-    Serial.print("stateStr length: ");
-    Serial.println(stateStr.length());
-    
     signal += stateStr;
 
     return signal;
