@@ -44,6 +44,8 @@ Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
 
 #define HOSTNAME "ESP-"
 
+TS_Point p;
+
 WiFiServer server(80);
 WiFiClient client;
 const char* defaultIP = "192.168.4.1";
@@ -72,6 +74,24 @@ bool redTurn;
 int moveX, moveY;
 const int depth = 5;
 
+void getClickedPlace(int& clickedI, int& clickedJ);
+void applyMove(int clickedI, int clickedJ);
+void envMove();
+bool isEndState();
+String readSignal();
+bool updateState(String signal);
+String createSignal();
+void hostSetup();
+void clientSetup();
+void drawResetButton();
+void drawGiveupButton();
+void gameSetup();
+void resetGame();
+void drawStartScreen();
+void createStartButton();
+void initDisplay();
+void drawGameOverScreen(int result);
+void drawMinimaxGameOverScreen(int moves);
 int minimax(State& s, const bool (&availables)[8][8], bool redTurn, int depth, int alpha = INT_MIN, int beta = INT_MAX);
 
 void setup() {
@@ -98,8 +118,8 @@ void loop() {
             gameState == HostWaitMode ||
             gameState == HostMode ||
             gameState == ClientMode) {
-        istouched = false;
-        TS_Point p0 = ts.getPoint(),p;  //Get touch point
+
+        TS_Point p0 = ts.getPoint();  //Get touch point
 
         p.x = map(p0.x, TS_MINX, TS_MAXX, 0, 320);
         p.y = map(p0.y, TS_MINY, TS_MAXY, 0, 240);
@@ -138,140 +158,73 @@ void loop() {
                 }
 
                 break;
+
             case playerMode:
                 if (giveupButton.pressed(p.x, p.y)) {
                     gameState = endMode;
                     drawGameOverScreen(INT_MIN);
 
+                    return;
+                }
+                getClickedPlace(clickedI, clickedJ);
+                delay(200);
+                applyMove(clickedI, clickedJ);
+                if (isEndState()) {
+                    delay(1000);
+                    gameState = endMode;
+                    drawGameOverScreen(countResult(currentState));
                 } else {
-                    clickedI = -1, clickedJ = -1;
-                    for (int i = 0; i < 8; ++i) {
-                        for (int j = 0; j < 8; ++j) {
-                            if (buttons[i][j].pressed(p.x, p.y)) {
-                                clickedI = i;
-                                clickedJ = j;
-                                tft.fillRect(buttons[i][j].x, buttons[i][j].y, buttons[i][j].width, buttons[i][j].height, GREEN);
-                                tft.setTextSize(3);
-                                printNumber(currentState, i, j);
-                                break;
-                            }
-                        }
-                    }
-                    delay(200);
-                    availablePlaces(currentState, availables, redTurn);
-                    if (!(clickedI == -1 || clickedJ == -1) && availables[clickedI][clickedJ]) {
-                        currentState = takeStep(currentState, clickedI, clickedJ, redTurn);
-                        redTurn = !redTurn;
+                    drawGiveupButton();
+                }
 
-                        if (availablePlaces(currentState, availables, redTurn) == 0) {
-                            redTurn = !redTurn;
-                        }
-                        printState(currentState, redTurn);
-                    } else {
-                        printState(currentState, redTurn);
-                        tft.setTextColor(RED);
-                        tft.setTextSize(2);
-                        tft.setCursor(10, 150);
-                        tft.print("Error");
-                    }
 
-                    if (availablePlaces(currentState, availables, redTurn) == 0 && availablePlaces(currentState, availables, !redTurn) == 0) {
+                break;
+
+            case PvEMode:
+                if (!redTurn) {
+                    envMove();
+                    if (isEndState()) {
                         delay(1000);
                         gameState = endMode;
                         drawGameOverScreen(countResult(currentState));
                     } else {
                         drawGiveupButton();
                     }
-
+                    return;
                 }
-
-                break;
-            case PvEMode:
-                if (!redTurn) {
-                    delay(300);
-                    availablePlaces(currentState, availables, redTurn);
-                    minimax(currentState, availables, redTurn, depth);
-                    redTurn = !redTurn;
-
-                    if (availablePlaces(currentState, availables, redTurn) == 0) {
-                        redTurn = !redTurn;
-                    }
-                    printState(currentState, redTurn);
-
-                    if (availablePlaces(currentState, availables, redTurn) == 0 && availablePlaces(currentState, availables, !redTurn) == 0) {
-                        delay(700);
-                        gameState = endMode;
-                        drawGameOverScreen(countResult(currentState));
-                    } else {
-                        drawGiveupButton();
-                    }
-                }
-                else if (giveupButton.pressed(p.x, p.y)) {
+                if (giveupButton.pressed(p.x, p.y)) {
                     gameState = endMode;
                     drawGameOverScreen(INT_MIN);
 
+                    return;
+                }
+                getClickedPlace(clickedI, clickedJ);
+                delay(200);
+                applyMove(clickedI, clickedJ);
+                if (isEndState()) {
+                    delay(1000);
+                    gameState = endMode;
+                    drawGameOverScreen(countResult(currentState));
                 } else {
-                    clickedI = -1, clickedJ = -1;
-                    for (int i = 0; i < 8; ++i) {
-                        for (int j = 0; j < 8; ++j) {
-                            if (buttons[i][j].pressed(p.x, p.y)) {
-                                clickedI = i;
-                                clickedJ = j;
-                                tft.fillRect(buttons[i][j].x, buttons[i][j].y, buttons[i][j].width, buttons[i][j].height, GREEN);
-                                tft.setTextSize(3);
-                                printNumber(currentState, i, j);
-                                break;
-                            }
-                        }
-                    }
-                    delay(200);
-                    availablePlaces(currentState, availables, redTurn);
-                    if (!(clickedI == -1 || clickedJ == -1) && availables[clickedI][clickedJ]) {
-                        currentState = takeStep(currentState, clickedI, clickedJ, redTurn);
-                        redTurn = !redTurn;
-
-                        if (availablePlaces(currentState, availables, redTurn) == 0) {
-                            redTurn = !redTurn;
-                        }
-                        printState(currentState, redTurn);
-                    } else {
-                        printState(currentState, redTurn);
-                        tft.setTextColor(RED);
-                        tft.setTextSize(2);
-                        tft.setCursor(10, 150);
-                        tft.print("Error");
-                    }
-
-                    if (availablePlaces(currentState, availables, redTurn) == 0 && availablePlaces(currentState, availables, !redTurn) == 0) {
-                        delay(1000);
-                        gameState = endMode;
-                        drawGameOverScreen(countResult(currentState));
-                    }
-
+                    drawGiveupButton();
                 }
 
                 break;
+
             case MinimaxMode:
-                delay(300);
-                availablePlaces(currentState, availables, redTurn);
-                minimax(currentState, availables, redTurn, depth);
-                redTurn = !redTurn;
-
-                if (availablePlaces(currentState, availables, redTurn) == 0) {
-                    redTurn = !redTurn;
-                }
-                printState(currentState, redTurn);
-
-                if (availablePlaces(currentState, availables, redTurn) == 0 && availablePlaces(currentState, availables, !redTurn) == 0) {
-                    delay(700);
+                envMove();
+                if (isEndState()) {
+                    delay(1000);
                     gameState = endMode;
                     drawGameOverScreen(countResult(currentState));
                 }
 
                 break;
+
             case HostWaitMode:
                 if (istouched && resetButton.pressed(p.x, p.y)) {
-                    WiFi.softAPdisconnect(true);
+                    tft.print ("reset pressed");
+                    WiFi.mode(WIFI_OFF);
                     gameState = startMode;
                     drawStartScreen();
                     return;
@@ -280,16 +233,16 @@ void loop() {
                 client = server.available();
                 if (client && client.connected()) {
                     tft.print ("client connected");
-                    tft.fillScreen(BLACK);
                     resetGame();
                     printState(currentState, redTurn);
                     gameState = HostMode;
                 }
 
                 break;
+
             case ClientConnectMode:
                 if (istouched && resetButton.pressed(p.x, p.y)) {
-                    WiFi.disconnect(true);
+                    WiFi.mode(WIFI_OFF);
                     gameState = startMode;
                     drawStartScreen();
                     return;
@@ -306,17 +259,13 @@ void loop() {
                     do {
                         Serial.print ("Connecting to ");
                         Serial.println (ssids[clickedI].c_str());
-
                         WiFi.begin(ssids[clickedI].c_str(), espPASS);
-                        Serial.println ("after wifi begin");
-
                         delay(5000);
                     } while (WiFi.status() != WL_CONNECTED);
                     
                     tft.setTextColor(RED);
                     if (client.connect(defaultIP, 80)) {
                         tft.print ("Connected to server ");
-                        tft.fillScreen(BLACK);
                         resetGame();
                         printState(currentState, redTurn);
                         gameState = ClientMode;
@@ -327,8 +276,9 @@ void loop() {
 
                 break;
             case HostMode:
+            case ClientMode:
                 if (istouched && resetButton.pressed(p.x, p.y)) {
-                    WiFi.softAPdisconnect(true);
+                    WiFi.mode(WIFI_OFF);
                     gameState = startMode;
                     drawStartScreen();
                     return;
@@ -341,22 +291,15 @@ void loop() {
                     drawGameOverScreen(countResult(currentState));
                     return;
                 }
-                if (redTurn) {
-                    availablePlaces(currentState, availables, redTurn);
-                    minimax(currentState, availables, redTurn, depth);
-                    redTurn = !redTurn;
-    
-                    if (availablePlaces(currentState, availables, redTurn) == 0) {
-                        redTurn = !redTurn;
-                    }
-                    printState(currentState, redTurn);
-                    showHost(true);
+                if (redTurn == (gameState == HostMode)) {
+                    envMove();
+                    showHost(redTurn);
     
                     String signal = createSignal();
                     client.println(startPattern + signal);
     
-                    if (availablePlaces(currentState, availables, redTurn) == 0 && availablePlaces(currentState, availables, !redTurn) == 0) {
-                        delay(700);
+                    if (isEndState()) {
+                        delay(1000);
                         gameState = endMode;
                         drawGameOverScreen(countResult(currentState));
                     }
@@ -367,15 +310,18 @@ void loop() {
                     }
                     if (!updateState(signal)) {
                         tft.println ("Something's wrong, aborting...");
+                        if (client.connected())
+                            client.println(startPattern); // Error message
                         delay(5000);
+                        WiFi.mode(WIFI_OFF);
                         gameState = endMode;
                         drawGameOverScreen(countResult(currentState));
                     } else {
                         printState(currentState, redTurn);
                         showHost(true);
     
-                        if (availablePlaces(currentState, availables, redTurn) == 0 && availablePlaces(currentState, availables, !redTurn) == 0) {
-                            delay(700);
+                        if (isEndState()) {
+                            delay(1000);
                             gameState = endMode;
                             drawGameOverScreen(countResult(currentState));
                         }
@@ -383,80 +329,74 @@ void loop() {
                 }
 
                 break;
-            case ClientMode:
-                if (istouched && resetButton.pressed(p.x, p.y)) {
-                    WiFi.softAPdisconnect(true);
-                    gameState = startMode;
-                    drawStartScreen();
-                    return;
-                }
-                if (!(client && client.connected())) {
-                    Serial.println("The host disconnected");
-                    tft.println("The host disconnected");
-                    delay(3000);
-                    gameState = endMode;
-                    drawGameOverScreen(countResult(currentState));
-                    return;
-                }
 
-                if (!redTurn) {
-                    availablePlaces(currentState, availables, redTurn);
-                    minimax(currentState, availables, redTurn, depth);
-                    redTurn = !redTurn;
-
-                    if (availablePlaces(currentState, availables, redTurn) == 0) {
-                        redTurn = !redTurn;
-                    }
-                    printState(currentState, redTurn);
-                    showHost(false);
-
-                    String signal = createSignal();
-                    client.println(startPattern + signal);
-                    // sendSignal(client, signal);
-
-                    if (availablePlaces(currentState, availables, redTurn) == 0 && availablePlaces(currentState, availables, !redTurn) == 0) {
-                        delay(700);
-                        gameState = endMode;
-                        drawGameOverScreen(countResult(currentState));
-                    }
-                } else {
-                    String signal = "";
-                    while (client.connected() && (signal = readSignal()) == "") {
-                        delay(200);
-                    }
-                    if (!updateState(signal)) {
-                        tft.println ("Something's wrong, aborting...");
-                        delay(5000);
-                        gameState = endMode;
-                        drawGameOverScreen(countResult(currentState));
-                    } else {
-                        printState(currentState, redTurn);
-                        showHost(false);
-
-                        if (availablePlaces(currentState, availables, redTurn) == 0 && availablePlaces(currentState, availables, !redTurn) == 0) {
-                            delay(700);
-                            gameState = endMode;
-                            drawGameOverScreen(countResult(currentState));
-                        }
-                    }
-                }
-
-                break;
             case endMode:
                 gameState = startMode;
                 drawStartScreen();
 
                 break;
-/*
+
             default:
                 Serial.println("Unknown GameState:");
                 Serial.println(gameState);
 
                 break;
-*/
         }
 
         delay(10);  
+    }
+}
+
+bool isEndState() {
+    return availablePlaces(currentState, availables, redTurn) == 0 && availablePlaces(currentState, availables, !redTurn) == 0;
+}
+
+void applyMove(int clickedI, int clickedJ) {
+
+    availablePlaces(currentState, availables, redTurn);
+    if (!(clickedI == -1 || clickedJ == -1) && availables[clickedI][clickedJ]) {
+        currentState = takeStep(currentState, clickedI, clickedJ, redTurn);
+        redTurn = !redTurn;
+
+        if (availablePlaces(currentState, availables, redTurn) == 0) {
+            redTurn = !redTurn;
+        }
+        printState(currentState, redTurn);
+    } else {
+        printState(currentState, redTurn);
+        tft.setTextColor(RED);
+        tft.setTextSize(2);
+        tft.setCursor(10, 150);
+        tft.print("Error");
+    }
+}
+
+void envMove() {
+
+    availablePlaces(currentState, availables, redTurn);
+    minimax(currentState, availables, redTurn, depth);
+    redTurn = !redTurn;
+
+    if (availablePlaces(currentState, availables, redTurn) == 0) {
+        redTurn = !redTurn;
+    }
+    printState(currentState, redTurn);
+}
+
+void getClickedPlace(int& clickedI, int& clickedJ) {
+
+    clickedI = -1, clickedJ = -1;
+    for (int i = 0; i < 8; ++i) {
+        for (int j = 0; j < 8; ++j) {
+            if (buttons[i][j].pressed(p.x, p.y)) {
+                clickedI = i;
+                clickedJ = j;
+                tft.fillRect(buttons[i][j].x, buttons[i][j].y, buttons[i][j].width, buttons[i][j].height, GREEN);
+                tft.setTextSize(3);
+                printNumber(currentState, i, j);
+                break;
+            }
+        }
     }
 }
 
@@ -481,9 +421,11 @@ String readSignal() {
     return data.substring(index + startPattern.length());
 }
 
+/*
 String sendSignal(WiFiClient& client, String signal) {
     client.println(startPattern + signal);
 }
+*/
 
 // false: something's wrong
 bool updateState(String signal) {
@@ -665,10 +607,12 @@ void gameSetup() {
     initState.pos[3][4] = false;
     initState.pos[4][3] = false;
     
-    // for (int i = 1; i < 8; ++i)
-    //     for (int j = 1; j < 8; ++j)
-    //         initState.pos[i][j] = (i+j) % 2;
-    // initState.h = heuristic(initState);
+    for (int i = 1; i < 8; ++i) {
+        for (int j = 1; j < 8; ++j) {
+            initState.pos[i][j] = (i+j) % 2 == 1 ? true : false;
+            initState.exist[i][j] = true;
+        }
+    }
 }
 
 void resetGame() {
@@ -679,8 +623,7 @@ void resetGame() {
     availablePlaces(currentState, availables, redTurn);
 }
 
-void drawStartScreen()
-{
+void drawStartScreen() {
     tft.fillScreen(BLACK);
 
     //Draw white frame
@@ -702,8 +645,7 @@ void drawStartScreen()
 
 }
 
-void createStartButton()
-{
+void createStartButton() {
     //Create Red Button
     playerButton.fillAndDraw(tft, RED, WHITE);
     tft.setCursor(playerButton.x + 10, playerButton.y + 12);
@@ -736,8 +678,7 @@ void createStartButton()
     tft.print("Client");
 }
 
-void initDisplay()
-{
+void initDisplay() {
 //  tft.reset();
     tft.begin();
     tft.setRotation(3);
@@ -751,16 +692,18 @@ void drawGameOverScreen(int result) {
     tft.drawRect(0,0,319,240,WHITE);
 
     if (result != INT_MIN) {
-        tft.setTextColor(RED);
         tft.setTextSize(3);
         if (result > 0) {
             tft.setCursor(100,30);
+            tft.setTextColor(RED);
             tft.print("Red Win!");
         } else if (result == 0) {
             tft.setCursor(105,30);
+            tft.setTextColor(MAGENTA);
             tft.print("Tie Up!");
         } else {
             tft.setCursor(95,30);
+            tft.setTextColor(BLUE);
             tft.print("Blue Win!");
         }
 
