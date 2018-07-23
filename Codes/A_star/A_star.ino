@@ -413,20 +413,12 @@ int A_star_search(State state, int cutoff, vector<Step>& steps) {
     frontier[getKey(state)] = state.f;
 
     int count = 1;
-    int maxQueueSize = 0;
-    int maxFrontierSize = 0;
 
     while (!(queue.empty())) {
         yield();
-        Serial.print ("queue.size: ");
-        Serial.print (queue.size());
-        Serial.print (", explored.size: ");
-        Serial.println (explored.size());
         if (queue.size() != frontier.size()) {
             break;
         }
-        maxQueueSize = max(maxQueueSize, int(queue.size()));
-        maxFrontierSize = max(maxFrontierSize, int(frontier.size()));
 
         State s = getState(queue.top());
         queue.pop();
@@ -456,21 +448,20 @@ int A_star_search(State state, int cutoff, vector<Step>& steps) {
 
             State successor = takeStep(s, step);
             KeyType key = getKey(successor);
-            KeyType longKey = getKey(successor);
             if (explored.find(key) != explored.end())
                 continue;
 
-            if (frontier.find(longKey) != frontier.end()) {
-                if (successor.f < frontier[longKey]) {
+            if (frontier.find(key) != frontier.end()) {
+                if (successor.f < frontier[key]) {
                     prevStep[key] = getHash(step);
-                    frontier[longKey] = successor.f;
+                    frontier[key] = successor.f;
                     queue.remove(getHash(successor));
                     queue.push(getHash(successor));
                 }
             } else {
                 ++count;
                 prevStep[key] = getHash(step);
-                frontier[longKey] = successor.f;
+                frontier[key] = successor.f;
                 queue.push(getHash(successor));
             }
         }
