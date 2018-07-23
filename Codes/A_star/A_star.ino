@@ -45,13 +45,11 @@ Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
 extern uint8_t circle[];
 extern uint8_t x_bitmap[];
 
-// typedef short KeyType;
 typedef unsigned long long KeyType;
-typedef unsigned long long LongKeyType;
 typedef unsigned long long HashType;
 typedef unordered_map<KeyType, char> StepMap;
 typedef unordered_map<KeyType, char>  HeuMap;
-typedef unordered_map<LongKeyType, char>  FMap;
+typedef unordered_map<KeyType, char>  FMap;
 
 enum GameState{startMode, playerMode, AStarMode, endMode};
 GameState gameState;
@@ -93,102 +91,117 @@ void loop() {
         Serial.print("\tY = "); Serial.print(p.y);
         Serial.print("\n");
                 
-        if (gameState == startMode) {
-            if (playerButton.pressed(p.x, p.y)) {
-                gameState = playerMode;
-                resetGame();
-                printState(currentState);
-                drawGiveupButton();
+        switch(gameState) {
+            case startMode:
+                if (playerButton.pressed(p.x, p.y)) {
+                    gameState = playerMode;
+                    resetGame();
+                    printState(currentState);
+                    drawGiveupButton();
 
-            } else if (AStarButton.pressed(p.x, p.y)) {
-                gameState = AStarMode;
-                resetGame();
-                printState(currentState);
+                } else if (AStarButton.pressed(p.x, p.y)) {
+                    gameState = AStarMode;
+                    resetGame();
+                    printState(currentState);
 
-                tft.setTextColor(RED);
-                tft.setTextSize(2);
-                tft.setCursor(10, 165);
-                tft.print("Solving...");
+                    tft.setTextColor(RED);
+                    tft.setTextSize(2);
+                    tft.setCursor(10, 165);
+                    tft.print("Solving...");
 
-                int cutoff = INT_MAX;
-                countAStar = A_star_search(initState, cutoff, steps);
+                    int cutoff = INT_MAX;
+                    countAStar = A_star_search(initState, cutoff, steps);
 
-                tft.setTextColor(BLUE);
-                tft.setCursor(10, 205);
-                Serial.println("Solved");
-                tft.print("Solved.");
-            }
-        } else if (gameState == playerMode) {
-            if (giveupButton.pressed(p.x, p.y)) {
-                gameState = endMode;
-                drawGameOverScreen(-1);
+                    tft.setTextColor(BLUE);
+                    tft.setCursor(10, 205);
+                    Serial.println("Solved");
+                    tft.print("Solved.");
+                }
+                
+                break;
 
-            } else {
-                int clickedIndex = -1;
-                for (int i = 0; i < 9; ++i) {
-                    if (buttons[i].pressed(p.x, p.y)) {
-                        clickedIndex = i;
-                        tft.fillRect(buttons[i].x, buttons[i].y, buttons[i].width, buttons[i].height, RED);
-                        tft.setTextColor(BLUE);
-                        tft.setTextSize(6);
-                        printNumber(currentState, i);
-                        break;
+            case playerMode:
+                if (giveupButton.pressed(p.x, p.y)) {
+                    gameState = endMode;
+                    drawGameOverScreen(-1);
+
+                } else {
+                    int clickedIndex = -1;
+                    for (int i = 0; i < 9; ++i) {
+                        if (buttons[i].pressed(p.x, p.y)) {
+                            clickedIndex = i;
+                            tft.fillRect(buttons[i].x, buttons[i].y, buttons[i].width, buttons[i].height, RED);
+                            tft.setTextColor(BLUE);
+                            tft.setTextSize(6);
+                            printNumber(currentState, i);
+                            break;
+                        }
+                    }
+                    delay(200);
+                    Step step;
+                    if (getLegalStep(currentState, clickedIndex, step)) {
+                        currentState = takeStep(currentState, step);
+                        printState(currentState);
+                    } else {
+                        printState(currentState);
+                        
+                        tft.setTextColor(RED);
+                        tft.setTextSize(3);
+                        tft.setCursor(10, 150);
+                        tft.print("Error");
+                    }
+
+                    if (currentState == goalState) {
+                        delay(1000);
+                        gameState = endMode;
+                        drawGameOverScreen(currentState.g);
+                    } else {
+                        drawGiveupButton();
                     }
                 }
-                delay(200);
-                Step step;
-                if (getLegalStep(currentState, clickedIndex, step)) {
-                    currentState = takeStep(currentState, step);
-                    printState(currentState);
-                } else {
-                    printState(currentState);
-                    
-                    tft.setTextColor(RED);
-                    tft.setTextSize(3);
-                    tft.setCursor(10, 150);
-                    tft.print("Error");
-                }
 
+                break;
+
+            case AStarMode:
+                for (int i = 0; i < steps.size(); ++i) {
+                    printState(currentState);
+                    delay(500);
+
+                    int p1 = steps[i].p1;
+                    int p2 = steps[i].p2;
+                    tft.fillRect(buttons[p1].x, buttons[p1].y, buttons[p1].width, buttons[p1].height, RED);
+                    tft.fillRect(buttons[p2].x, buttons[p2].y, buttons[p2].width, buttons[p2].height, RED);
+                    tft.setTextColor(BLUE);
+                    tft.setTextSize(6);
+                    printNumber(currentState, p1);
+                    printNumber(currentState, p2);
+
+                    currentState = takeStep(currentState, steps[i]);
+                }
                 if (currentState == goalState) {
-                    delay(1000);
-                    gameState = endMode;
-                    drawGameOverScreen(currentState.g);
-                } else {
-                    drawGiveupButton();
+                    printState(currentState);
+                    delay(500);
+                    drawAStarGameOverScreen(currentState.g);
                 }
-            }
-        } else if (gameState == AStarMode) {
-            for (int i = 0; i < steps.size(); ++i) {
-                printState(currentState);
-                delay(500);
+                else
+                    drawAStarGameOverScreen(INT_MAX);
 
-                int p1 = steps[i].p1;
-                int p2 = steps[i].p2;
-                tft.fillRect(buttons[p1].x, buttons[p1].y, buttons[p1].width, buttons[p1].height, RED);
-                tft.fillRect(buttons[p2].x, buttons[p2].y, buttons[p2].width, buttons[p2].height, RED);
-                tft.setTextColor(BLUE);
-                tft.setTextSize(6);
-                printNumber(currentState, p1);
-                printNumber(currentState, p2);
+                gameState = endMode;
 
-                currentState = takeStep(currentState, steps[i]);
-            }
-            if (currentState == goalState) {
-                printState(currentState);
-                delay(500);
-                drawAStarGameOverScreen(currentState.g);
-            }
-            else
-                drawAStarGameOverScreen(INT_MAX);
+                break;
 
-            gameState = endMode;
+            case endMode:
+                gameState = startMode;
+                drawStartScreen();
 
-        } else if (gameState == endMode) {
-            gameState = startMode;
-            drawStartScreen();
-        } else {
-            Serial.println("Unknown GameState:");
-            Serial.println(gameState);
+                break;
+
+            default:
+                Serial.println("Unknown GameState:");
+                Serial.println(gameState);
+
+                break;
+
         }
 
         delay(10);  
@@ -385,7 +398,7 @@ int A_star_search(State state, int cutoff, vector<Step>& steps) {
     StepMap prevStep;
     HeuMap explored; // key to heuristic f
     FMap frontier; // key to heuristic f
-    frontier[getLongKey(state)] = state.f;
+    frontier[getKey(state)] = state.f;
 
     int count = 1;
     int maxQueueSize = 0;
@@ -407,7 +420,7 @@ int A_star_search(State state, int cutoff, vector<Step>& steps) {
         queue.pop();
 
         explored[getKey(s)] = s.h;
-        frontier.erase(getLongKey(s));
+        frontier.erase(getKey(s));
 
         if (s == goalState) {
             KeyType key = getKey(s);
@@ -431,7 +444,7 @@ int A_star_search(State state, int cutoff, vector<Step>& steps) {
 
             State successor = takeStep(s, step);
             KeyType key = getKey(successor);
-            LongKeyType longKey = getLongKey(successor);
+            KeyType longKey = getKey(successor);
             if (explored.find(key) != explored.end())
                 continue;
 
