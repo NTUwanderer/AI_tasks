@@ -55,6 +55,7 @@ void drawVerticalLine(int x);
 void printNumber(const State& s, int i, int j);
 void printState(State& s, bool redTurn);
 State takeStep(const State& s, int i, int j, bool redTurn);
+bool randomMove(const State&s, int& mX, int& mY, int nMoves, bool (&available)[8][8]);
 
 String toString(const State& s) {
     String str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
@@ -349,5 +350,31 @@ State takeStep(const State& s, int i, int j, bool redTurn) {
     heuristic(newS);
 
     return newS;
+}
+
+bool randomMove(const State&s, int& mX, int& mY, int nMoves, bool (&available)[8][8]) {
+    
+    Serial.println("In randomMove");
+    if (nMoves <= 0) {
+        Serial.println("It's endState");
+        return false;
+    }
+    size_t k = rand() % nMoves;
+    size_t ith = 0;
+    for (int i = 0; i < 8; ++i) {
+        for (int j = 0; j < 8; ++j) {
+            if (available[i][j]) {
+                if (ith == k) {
+                    mX = i;
+                    mY = j;
+                    return true;
+                }
+                ++ith;
+            }
+        }
+    }
+
+    Serial.println("Didn't found kth move");
+    return false;
 }
 

@@ -72,7 +72,12 @@ int countMinimax;
 bool availables[8][8];
 bool redTurn;
 int moveX, moveY;
-const int depth = 5;
+const int maxDepth = 6;
+
+// Time: milli second as unit
+unsigned long deadline;
+const unsigned long maxPeriod = 2000; // 2 seconds at most
+const unsigned long bufferTime = 50; // 0.1 second as buffer
 
 void getClickedPlace(int& clickedI, int& clickedJ);
 void applyMove(int clickedI, int clickedJ);
@@ -92,7 +97,7 @@ void createStartButton();
 void initDisplay();
 void drawGameOverScreen(int result);
 void drawMinimaxGameOverScreen(int moves);
-int minimax(State& s, const bool (&availables)[8][8], bool redTurn, int depth, int alpha = INT_MIN, int beta = INT_MAX);
+int minimax(const State& s, int& mX, int& mY, bool redTurn, int depth, int alpha = INT_MIN, int beta = INT_MAX);
 
 void setup() {
     pinMode(BL_LED,OUTPUT);
@@ -149,7 +154,6 @@ void loop() {
                     gameState = MinimaxMode;
                 } else if (HostButton.pressed(p.x, p.y)) {
                     hostSetup();
-                    drawResetButton();
                     gameState = HostWaitMode;
                 } else if (ClientButton.pressed(p.x, p.y)) {
                     clientSetup();
@@ -242,7 +246,6 @@ void loop() {
 
             case ClientConnectMode:
                 if (istouched && resetButton.pressed(p.x, p.y)) {
-                    WiFi.mode(WIFI_OFF);
                     gameState = startMode;
                     drawStartScreen();
                     return;
@@ -293,7 +296,7 @@ void loop() {
                 }
                 if (redTurn == (gameState == HostMode)) {
                     envMove();
-                    showHost(redTurn);
+                    showHost(gameState == HostMode);
     
                     String signal = createSignal();
                     client.println(startPattern + signal);
@@ -318,7 +321,7 @@ void loop() {
                         drawGameOverScreen(countResult(currentState));
                     } else {
                         printState(currentState, redTurn);
-                        showHost(true);
+                        showHost(gameState == HostMode);
     
                         if (isEndState()) {
                             delay(1000);
@@ -373,9 +376,16 @@ void applyMove(int clickedI, int clickedJ) {
 
 void envMove() {
 
-    availablePlaces(currentState, availables, redTurn);
-    minimax(currentState, availables, redTurn, depth);
-    redTurn = !redTurn;
+    int nMoves = availablePlaces(currentState, availables, redTurn);
+    moveX = moveY = -1;
+    deadline = millis() + maxPeriod;
+    minimax(currentState, moveX, moveY, redTurn, maxDepth);
+    if ((moveX != -1 && millis() <= deadline) || randomMove(currentState, moveX, moveY, nMoves, availables)) {
+        currentState = takeStep(currentState, moveX, moveY, redTurn);
+        redTurn = !redTurn;
+    } else {
+        Serial.println("Something went wrong QQ");
+    }
 
     if (availablePlaces(currentState, availables, redTurn) == 0) {
         redTurn = !redTurn;
@@ -519,6 +529,7 @@ void hostSetup() {
         tft.setCursor(30, 170);
         tft.print(WiFi.softAPIP());
         server.begin();
+        drawResetButton();
     }
     else {
         Serial.println("Failed!");
@@ -541,7 +552,6 @@ void clientSetup() {
     tft.print("Choose a network");
 
     WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
 
     int n = WiFi.scanNetworks();
 
@@ -607,12 +617,14 @@ void gameSetup() {
     initState.pos[3][4] = false;
     initState.pos[4][3] = false;
     
+    /*
     for (int i = 1; i < 8; ++i) {
         for (int j = 1; j < 8; ++j) {
             initState.pos[i][j] = (i+j) % 2 == 1 ? true : false;
             initState.exist[i][j] = true;
         }
     }
+    */
 }
 
 void resetGame() {
@@ -757,32 +769,46 @@ void drawMinimaxGameOverScreen(int moves) {
 }
 
 // return best heuristic value with a limited trace depth
-int minimax(State& s, const bool (&availables)[8][8], bool redTurn, int depth, int alpha, int beta) {
+int minimax(const State& s, int& mX, int& mY, bool redTurn, int depth, int alpha, int beta) {
+
+    mX = -1;
+    mY = -1;
+
+    int bestHeu = (redTurn ? -10000 : 10000);
+
+    if ((gameState == HostMode || gameState == ClientMode) && millis() >= deadline - bufferTime) {
+
+        return bestHeu;
+    }
 
     yield();
-    int bestX = -1, bestY = -1;
-    int bestHeu = 0;
 
-    bool newAvailable[8][8];
+    bool newAvailables[8][8];
+    availablePlaces(s, newAvailables, redTurn);
     bool finish = false;
 
     for (int i = 0; i < 8; ++i) {
         for (int j = 0; j < 8; ++j) {
-            if (!availables[i][j])
+            if (!newAvailables[i][j])
                 continue;
+
+            if (millis() > deadline - bufferTime) {
+                finish = true;
+                break;
+            }
 
             int h;
             State newS = takeStep(s, i, j, redTurn);
             if (depth <= 1 || isEnd(newS)) {
                 h = heuristic(newS);
             } else {
-                availablePlaces(newS, newAvailable, !redTurn);
-                h = minimax(newS, newAvailable, !redTurn, depth - 1, alpha, beta);
+                int tempMX = -1, tempMY = -1;
+                h = minimax(newS, tempMX, tempMY, !redTurn, depth - 1, alpha, beta);
             }
 
-            if (bestX == -1 || (redTurn && h > bestHeu) || (!redTurn && h < bestHeu)) {
-                bestX   = i;
-                bestY   = j;
+            if (mX == -1 || (redTurn && h > bestHeu) || (!redTurn && h < bestHeu)) {
+                mX = i;
+                mY = j;
                 bestHeu = h;
                 if (redTurn && bestHeu > alpha)
                     alpha = bestHeu;
@@ -799,16 +825,12 @@ int minimax(State& s, const bool (&availables)[8][8], bool redTurn, int depth, i
         if (finish)
             break;
     }
-    if (bestX == -1) {
+    if (mX == -1 && depth > 1 && millis() > deadline - bufferTime) {
         State newS = s;
-        availablePlaces(newS, newAvailable, !redTurn);
-        bestHeu = minimax(newS, newAvailable, !redTurn, depth - 1);
-    } else {
-        s = takeStep(s, bestX, bestY, redTurn);
-        moveX = bestX;
-        moveY = bestY;
+        int tempMX = -1, tempMY = -1;
+        bestHeu = minimax(newS, mX, mY, !redTurn, depth - 1);
     }
 
     return bestHeu;
-} 
+}
 
