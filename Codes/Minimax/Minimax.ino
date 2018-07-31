@@ -72,7 +72,7 @@ int countMinimax;
 bool availables[8][8];
 bool redTurn;
 int moveX, moveY;
-const int maxDepth = 6;
+const int maxDepth = 5;
 
 // Time: milli second as unit
 unsigned long deadline;
@@ -97,6 +97,7 @@ void createStartButton();
 void initDisplay();
 void drawGameOverScreen(int result);
 void drawMinimaxGameOverScreen(int moves);
+bool reachDeadline(bool withBuffer = true);
 int minimax(const State& s, int& mX, int& mY, bool redTurn, int depth, int alpha = INT_MIN, int beta = INT_MAX);
 
 void setup() {
@@ -380,7 +381,7 @@ void envMove() {
     moveX = moveY = -1;
     deadline = millis() + maxPeriod;
     minimax(currentState, moveX, moveY, redTurn, maxDepth);
-    if ((moveX != -1 && millis() <= deadline) || randomMove(currentState, moveX, moveY, nMoves, availables)) {
+    if ((moveX != -1 && reachDeadline(false) == false) || randomMove(currentState, moveX, moveY, nMoves, availables)) {
         currentState = takeStep(currentState, moveX, moveY, redTurn);
         redTurn = !redTurn;
     } else {
@@ -768,6 +769,20 @@ void drawMinimaxGameOverScreen(int moves) {
     tft.print("Click to Continue...");
 }
 
+bool reachDeadline(bool withBuffer) {
+    if ((gameState == HostMode || gameState == ClientMode)) {
+        if (withBuffer) {
+            if (millis() >= deadline - bufferTime)
+                return true;
+        } else {
+            if (millis() >= deadline)
+                return true;
+        }
+    } 
+ 
+    return false;
+}
+
 // return best heuristic value with a limited trace depth
 int minimax(const State& s, int& mX, int& mY, bool redTurn, int depth, int alpha, int beta) {
 
@@ -776,8 +791,7 @@ int minimax(const State& s, int& mX, int& mY, bool redTurn, int depth, int alpha
 
     int bestHeu = (redTurn ? -10000 : 10000);
 
-    if ((gameState == HostMode || gameState == ClientMode) && millis() >= deadline - bufferTime) {
-
+    if (reachDeadline()) {
         return bestHeu;
     }
 
@@ -792,7 +806,7 @@ int minimax(const State& s, int& mX, int& mY, bool redTurn, int depth, int alpha
             if (!newAvailables[i][j])
                 continue;
 
-            if (millis() > deadline - bufferTime) {
+            if (reachDeadline()) {
                 finish = true;
                 break;
             }
@@ -825,10 +839,9 @@ int minimax(const State& s, int& mX, int& mY, bool redTurn, int depth, int alpha
         if (finish)
             break;
     }
-    if (mX == -1 && depth > 1 && millis() > deadline - bufferTime) {
-        State newS = s;
+    if (mX == -1 && reachDeadline() == false) {
         int tempMX = -1, tempMY = -1;
-        bestHeu = minimax(newS, mX, mY, !redTurn, depth - 1);
+        bestHeu = minimax(s, tempMX, tempMY, !redTurn, depth);
     }
 
     return bestHeu;

@@ -72,7 +72,7 @@ int countMinimax;
 bool availables[8][8];
 bool redTurn;
 int moveX, moveY;
-const int maxDepth = 6;
+const int maxDepth = 5;
 
 // Time: milli second as unit
 unsigned long deadline;
@@ -97,6 +97,7 @@ void createStartButton();
 void initDisplay();
 void drawGameOverScreen(int result);
 void drawMinimaxGameOverScreen(int moves);
+bool reachDeadline(bool withBuffer = true);
 int minimax(const State& s, int& mX, int& mY, bool redTurn, int depth, int alpha = INT_MIN, int beta = INT_MAX);
 
 void setup() {
@@ -380,7 +381,7 @@ void envMove() {
     moveX = moveY = -1;
     deadline = millis() + maxPeriod;
     minimax(currentState, moveX, moveY, redTurn, maxDepth);
-    if ((moveX != -1 && millis() <= deadline) || randomMove(currentState, moveX, moveY, nMoves, availables)) {
+    if ((moveX != -1 && reachDeadline(false) == false) || randomMove(currentState, moveX, moveY, nMoves, availables)) {
         currentState = takeStep(currentState, moveX, moveY, redTurn);
         redTurn = !redTurn;
     } else {
@@ -768,6 +769,20 @@ void drawMinimaxGameOverScreen(int moves) {
     tft.print("Click to Continue...");
 }
 
+bool reachDeadline(bool withBuffer) {
+    if ((gameState == HostMode || gameState == ClientMode)) {
+        if (withBuffer) {
+            if (millis() >= deadline - bufferTime)
+                return true;
+        } else {
+            if (millis() >= deadline)
+                return true;
+        }
+    } 
+ 
+    return false;
+}
+
 // return best heuristic value with a limited trace depth
 int minimax(const State& s, int& mX, int& mY, bool redTurn, int depth, int alpha, int beta) {
 
@@ -776,8 +791,7 @@ int minimax(const State& s, int& mX, int& mY, bool redTurn, int depth, int alpha
 
     int bestHeu = (redTurn ? -10000 : 10000);
 
-    if ((gameState == HostMode || gameState == ClientMode) && millis() >= deadline - bufferTime) {
-
+    if (reachDeadline()) {
         return bestHeu;
     }
 
@@ -794,6 +808,7 @@ int minimax(const State& s, int& mX, int& mY, bool redTurn, int depth, int alpha
         Notes: 
         If depth == 1, return heuristic(s) directly.
         Take care of the situation that no available moves for the current redTurn: directly switch to !redTurn.
+        If the current redTurn has no available step, you can trace !redTurn without decrease depth.
     */
 
     return bestHeu;
