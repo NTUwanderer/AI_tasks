@@ -1,22 +1,29 @@
+#ifndef STATE_H
+#define STATE_H
+
 #include <stdlib.h>
 #include <vector>
 #include <math.h>
+#include <string>
+
+#define RED "\033[0;32;31m"
+#define BLUE "\033[0;32;34m"
+#define NONE "\033[m"
+
+using namespace std;
 
 struct State {
-    int pos[8][8]; // 0: x (black), 1: o (white): x, -1 means empty
-    int h;
-} initState;
-
-bool operator< (const State& s1, const State& s2) {
-    return s1.h > s2.h;
-}
+    bool pos[8][8]; // false: x (red), true: o (blue)
+    bool exist[8][8];
+};
 
 bool operator== (const State& s1, const State& s2) {
     for (int i = 0; i < 8; ++i) {
         for (int j = 0; j < 8; ++j) {
-            if (s1.pos[i][j] != s2.pos[i][j]) {
+            if (s1.exist[i][j] != s2.exist[i][j])
                 return false;
-            }
+            if (s1.exist[i][j] && (s1.pos[i][j] != s2.pos[i][j]))
+                return false;
         }
     }
 
@@ -27,19 +34,37 @@ bool operator!= (const State& s1, const State& s2) {
     return !(s1 == s2);
 }
 
+bool inBoard(int x, int y);
+int countResult(const State& s);
+int availablePlaces(const State& s, bool (&available)[8][8], bool redTurn);
+int heuristic(const State& s);
+bool isEnd(const State& s);
+void printState(State& s, bool redTurn);
+State takeStep(const State& s, int i, int j, bool redTurn);
+bool randomMove(const State&s, int& mX, int& mY, int nMoves, bool (&available)[8][8]);
+
 bool inBoard(int x, int y) {
     return (x >= 0 && x < 8 && y >= 0 && y < 8);
 }
 
-int availablePlaces(const State& s, bool (&available)[8][8], bool blackTurn) {
+int countResult(const State& s) {
+    int result = 0;
+    for (int i = 0; i < 8; ++i)
+        for (int j = 0; j < 8; ++j)
+            result += (!s.exist[i][j]) ? 0 : (!s.pos[i][j]) ? 1 : -1;
 
-    int currentC = blackTurn ? 0 : 1;
-    int opponentC = (currentC + 1) % 2;
+    return result;
+}
+
+int availablePlaces(const State& s, bool (&available)[8][8], bool redTurn) {
+
+    bool currentC = redTurn ? false : true;
+    bool opponentC = !currentC;
 
     for (int i = 0; i < 8; ++i) {
         for (int j = 0; j < 8; ++j) {
             available[i][j] = false;
-            if (s.pos[i][j] >= 0) {
+            if (s.exist[i][j]) {
                 continue;
             }
 
@@ -56,7 +81,7 @@ int availablePlaces(const State& s, bool (&available)[8][8], bool blackTurn) {
                         if (!(inBoard(x, y)))
                             break;
 
-                        if (s.pos[x][y] == -1)
+                        if (!s.exist[x][y])
                             break;
 
                         if (s.pos[x][y] == opponentC)
@@ -89,55 +114,58 @@ int availablePlaces(const State& s, bool (&available)[8][8], bool blackTurn) {
 
 }
 
-int heuristic(State& s) {
+int heuristic(const State& s) {
 
-    s.h = 0;
+    int h = 0;
 
     bool available[8][8];
-    int blackMoves = availablePlaces(s, available, true);
-    int whiteMoves = availablePlaces(s, available, false);
-    if (blackMoves != 0 || whiteMoves != 0)
-        s.h = blackMoves - whiteMoves;
+    int redMoves = availablePlaces(s, available, true);
+    int blueMoves = availablePlaces(s, available, false);
+    if (redMoves != 0 || blueMoves != 0)
+        h = redMoves - blueMoves;
     else {
-        for (int i = 0; i < 8; ++i) {
-            for (int j = 0; j < 8; ++j) {
-                if (s.pos[i][j] == 0)
-                    ++(s.h);
-                else if (s.pos[i][j] == 1)
-                    --(s.h);
-            }
-        }
+        h = countResult(s);
     }
 
-    return s.h;
+    return h;
 }
 
 bool isEnd(const State& s) {
 
     bool available[8][8];
-    int blackMoves = availablePlaces(s, available, true);
-    int whiteMoves = availablePlaces(s, available, false);
-    return (blackMoves == 0 && whiteMoves == 0);
+    int redMoves = availablePlaces(s, available, true);
+    int blueMoves = availablePlaces(s, available, false);
+    return (redMoves == 0 && blueMoves == 0);
 }
 
-void printState(State& s) {
+void printState(State& s, bool redTurn) {
 
     printf ("  a b c d e f g h\n");
     for (int i = 0; i < 8; ++i) {
         printf ("%i", i + 1);
-        for (int j = 0; j < 8; ++j)
-            printf (" %c", s.pos[i][j] == 0 ? 'x' : s.pos[i][j] == 1 ? 'o' : '.');
+        for (int j = 0; j < 8; ++j) {
+            if (s.exist[i][j]) {
+                if (s.pos[i][j]) {
+                    printf (BLUE " o" NONE);
+                } else {
+                    printf (RED " x" NONE);
+                }
+            } else {
+                printf ("  ");
+            }
+
+        }
 
         printf ("\n");
     }
     printf ("heu: %i\n", heuristic(s));
 }
 
-State takeStep(const State& s, int i, int j, bool blackTurn) {
+State takeStep(const State& s, int i, int j, bool redTurn) {
     State newS = s;
 
-    int currentC = blackTurn ? 0 : 1;
-    int opponentC = (currentC + 1) % 2;
+    bool currentC = redTurn ? false : true;
+    bool opponentC = !currentC;
 
     // direction (a, b)
     for (int a = -1; a <= 1; ++a) {
@@ -153,7 +181,7 @@ State takeStep(const State& s, int i, int j, bool blackTurn) {
                 if (!(inBoard(x, y)))
                     break;
 
-                if (s.pos[x][y] == -1)
+                if (!s.exist[x][y])
                     break;
 
                 if (newS.pos[x][y] == opponentC)
@@ -175,55 +203,36 @@ State takeStep(const State& s, int i, int j, bool blackTurn) {
             }
         }
     }
+    newS.exist[i][j] = true;
     newS.pos[i][j] = currentC;
+    heuristic(newS);
 
     return newS;
 }
 
-/*
-unsigned long getKey(State s) {
-    unsigned long key = 0;
-    for (int i = 0; i < 9; ++i) {
-        key ^= zKey[i * 9 + s.pos[i]];
+bool randomMove(const State&s, int& mX, int& mY, int nMoves, bool (&available)[8][8]) {
+    
+    if (nMoves <= 0) {
+        printf ("It's endState");
+        return false;
     }
-
-    return key;
-}
-
-State takeStep(State s, Step step, bool reverse = false) {
-    State newS = s;
-    swap(newS.pos[step.p1], newS.pos[step.p2]);
-
-    if (reverse)
-        newS.g = s.g - 1;
-    else
-        newS.g = s.g + 1;
-    newS.h = heuristic(newS);
-    newS.f = newS.g + newS.h;
-
-    return newS;
-}
-
-void getAvailableSteps(State s, vector<Step>& steps) {
-    int p = 0;
-    for (int i = 0; i < 9; ++i) {
-        if (s.pos[i] == 0) {
-            p = i;
-            break;
+    size_t k = rand() % nMoves;
+    size_t ith = 0;
+    for (int i = 0; i < 8; ++i) {
+        for (int j = 0; j < 8; ++j) {
+            if (available[i][j]) {
+                if (ith == k) {
+                    mX = i;
+                    mY = j;
+                    return true;
+                }
+                ++ith;
+            }
         }
     }
 
-    if (p >= 3)
-        steps.push_back(getStep(p-3, p));
-
-    if (p < 6)
-        steps.push_back(getStep(p, p+3));
-
-    if ((p % 3) != 0)
-        steps.push_back(getStep(p-1, p));
-
-    if ((p % 3) != 2)
-        steps.push_back(getStep(p, p+1));
+    return false;
 }
-*/
+
+#endif
 
