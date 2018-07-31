@@ -265,7 +265,7 @@ void gameSetup() {
 
 void resetGame() {
     do {
-        initState = randomStepState(15);
+        initState = randomStepState(10);
         // initState = randomState();
     } while (initState == goalState);
     currentState = initState;
