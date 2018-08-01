@@ -3,7 +3,7 @@
 
 string teamName2 = "team2";
 
-int heuristic2(const State& s) {
+double heuristic2(const State& s) {
     return heuristic(s);
 }
 

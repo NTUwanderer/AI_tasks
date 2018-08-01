@@ -38,7 +38,7 @@ bool inBoard(int x, int y);
 int countResult(const State& s);
 void countResult(const State& s, int& r, int& b);
 int availablePlaces(const State& s, bool (&available)[8][8], bool redTurn);
-int heuristic(const State& s);
+double heuristic(const State& s);
 bool isEnd(const State& s);
 void printState(State& s, bool redTurn);
 State takeStep(const State& s, int i, int j, bool redTurn);
@@ -131,7 +131,7 @@ int availablePlaces(const State& s, bool (&available)[8][8], bool redTurn) {
 
 }
 
-int heuristic(const State& s) {
+double heuristic(const State& s) {
 
     int h = 0;
 
@@ -144,7 +144,7 @@ int heuristic(const State& s) {
         h = countResult(s);
     }
 
-    return h;
+    return (double)h;
 }
 
 bool isEnd(const State& s) {

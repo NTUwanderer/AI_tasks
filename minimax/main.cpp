@@ -70,7 +70,7 @@ void playerMove(State& s, const bool (&available)[8][8], bool redTurn = true) {
     }
 }
 
-int playerHeuristic(const State& s, bool firstPlayer) {
+double playerHeuristic(const State& s, bool firstPlayer) {
     int player = (firstPlayer ? player1 : player2);
 
     switch(player) {
@@ -138,7 +138,7 @@ void printCompetitionStatus(const State& s) {
     printf ("Team:  ");
     printf (RED "%s" NONE " vs " BLUE "%s\n" NONE, playerTeamname(true).c_str(), playerTeamname(false).c_str());
     printf ("Heu:   ");
-    printf (RED "%i" NONE " vs " BLUE "%i\n" NONE, playerHeuristic(s, true), playerHeuristic(s, false));
+    printf (RED "%lf" NONE " vs " BLUE "%lf\n" NONE, playerHeuristic(s, true), playerHeuristic(s, false));
     printf ("Num of occupied: ");
     printf (RED "%i" NONE " vs " BLUE "%i\n" NONE, r, b);
 }
@@ -149,7 +149,7 @@ int minimax(const State& s, int& mX, int& mY, bool redTurn, int depth, bool firs
     mX = -1;
     mY = -1;
 
-    int bestHeu = (redTurn ? -10000 : 10000);
+    double bestHeu = (redTurn ? -10000 : 10000);
 
     bool newAvailables[8][8];
     availablePlaces(s, newAvailables, redTurn);
