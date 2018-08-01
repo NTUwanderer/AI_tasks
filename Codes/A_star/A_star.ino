@@ -81,7 +81,8 @@ void setup() {
     digitalWrite(BL_LED, HIGH);
     Serial.begin(9600);
     Serial.print("Starting...");
-    randomSeed(millis());
+    // randomSeed(millis());
+    randomSeed(1);
  
     if (!ts.begin()) {
         Serial.println("Couldn't start touchscreen controller");
@@ -265,7 +266,7 @@ void gameSetup() {
 
 void resetGame() {
     do {
-        initState = randomStepState(15);
+        initState = randomStepState(10);
         // initState = randomState();
     } while (initState == goalState);
     currentState = initState;
@@ -405,14 +406,12 @@ void drawAStarGameOverScreen(int moves) {
 }
 
 int A_star_search(State state, int cutoff, vector<Step>& steps) {
-    myQueue<HashType> queue;
-    queue.push(getHash(state));
+    myQueue<State> queue;
+    queue.push(state);
     StepMap prevStep;
     HeuMap explored; // key to heuristic f
     FMap frontier; // key to heuristic f
     frontier[getKey(state)] = state.f;
-
-    int count = 1;
 
     while (!(queue.empty())) {
         yield();
@@ -420,7 +419,7 @@ int A_star_search(State state, int cutoff, vector<Step>& steps) {
             break;
         }
 
-        State s = getState(queue.top());
+        State s = queue.top();
         queue.pop();
 
         explored[getKey(s)] = s.h;
@@ -443,9 +442,7 @@ int A_star_search(State state, int cutoff, vector<Step>& steps) {
         getAvailableSteps(s, avSteps);
 
         for (int i = 0; i < avSteps.size(); ++i) {
-            KeyType origKey = getKey(s);
             Step step = avSteps[i];
-
             State successor = takeStep(s, step);
             KeyType key = getKey(successor);
             if (explored.find(key) != explored.end())
@@ -455,18 +452,17 @@ int A_star_search(State state, int cutoff, vector<Step>& steps) {
                 if (successor.f < frontier[key]) {
                     prevStep[key] = getHash(step);
                     frontier[key] = successor.f;
-                    queue.remove(getHash(successor));
-                    queue.push(getHash(successor));
+                    queue.remove(successor);
+                    queue.push(successor);
                 }
             } else {
-                ++count;
                 prevStep[key] = getHash(step);
                 frontier[key] = successor.f;
-                queue.push(getHash(successor));
+                queue.push(successor);
             }
         }
     }
 
-    return count;
+    return explored.size();
 }
 

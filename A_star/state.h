@@ -9,28 +9,6 @@
 
 using namespace std;
 
-// extern int zkey;
-
-class myHashComparison {
-    bool reverse;
-public:
-    myHashComparison(const bool& revparam=true) {
-        reverse=revparam;
-    }
-    bool operator() (const unsigned long long& lhs, const unsigned long long& rhs) const {
-        unsigned long long l = (lhs >> 36);
-        unsigned long long r = (rhs >> 36);
-        if (reverse) return (l>r);
-        else return (l<r);
-    }
-};
-
-/*
-bool myHashCompare(unsigned long long lhs, unsigned long long rhs) {
-    return ((lhs >> 36) > (rhs >> 36));
-}
-*/
-
 struct State {
     int pos[9]; // 1~8, 0 means empty
     int g;
@@ -58,6 +36,19 @@ bool operator== (const State& s1, const State& s2) {
 bool operator!= (const State& s1, const State& s2) {
     return !(s1 == s2);
 }
+
+class myComparison {
+    bool reverse;
+public:
+    bool operator() (const unsigned long long& lhs, const unsigned long long& rhs) const {
+        unsigned long long l = (lhs >> 36);
+        unsigned long long r = (rhs >> 36);
+        return (l < r);
+    }
+    bool operator() (const State& lhs, const State& rhs) const {
+        return (lhs < rhs);
+    }
+};
 
 int findPos(State s, int n);
 int heuristic(State s);
