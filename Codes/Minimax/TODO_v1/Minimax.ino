@@ -98,7 +98,7 @@ void initDisplay();
 void drawGameOverScreen(int result);
 void drawMinimaxGameOverScreen(int moves);
 bool reachDeadline(bool withBuffer = true);
-int minimax(const State& s, int& mX, int& mY, bool redTurn, int depth, int alpha = INT_MIN, int beta = INT_MAX);
+double minimax(const State& s, int& mX, int& mY, bool redTurn, int depth, int alpha = INT_MIN, int beta = INT_MAX);
 
 void setup() {
     pinMode(BL_LED,OUTPUT);
@@ -784,12 +784,12 @@ bool reachDeadline(bool withBuffer) {
 }
 
 // return best heuristic value with a limited trace depth
-int minimax(const State& s, int& mX, int& mY, bool redTurn, int depth, int alpha, int beta) {
+double minimax(const State& s, int& mX, int& mY, bool redTurn, int depth, int alpha, int beta) {
 
     mX = -1;
     mY = -1;
 
-    int bestHeu = (redTurn ? -10000 : 10000);
+    double bestHeu = (redTurn ? -10000000 : 10000000);
 
     if (reachDeadline()) {
         return bestHeu;

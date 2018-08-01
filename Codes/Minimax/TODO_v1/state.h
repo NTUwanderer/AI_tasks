@@ -47,7 +47,7 @@ char* myToChars_six(int i);
 bool inBoard(int x, int y);
 int countResult(const State& s);
 int availablePlaces(const State& s, bool (&available)[8][8], bool redTurn);
-int heuristic(State& s);
+double heuristic(State& s);
 bool isEnd(const State& s);
 void showHost(bool host);
 void drawHorizontalLine(int y);
@@ -169,9 +169,9 @@ int availablePlaces(const State& s, bool (&available)[8][8], bool redTurn) {
 
 }
 
-int heuristic(State& s) {
+double heuristic(State& s) {
 
-    int h = 0;
+    double h = 0;
 
     // TODO: design your heuristic function
 
@@ -248,7 +248,7 @@ void printState(State& s, bool redTurn) {
     tft.setTextSize(2);
     tft.setCursor(10, 25);
     tft.print("h:");
-    tft.print(myToChars(heuristic(s)));
+    tft.print(myToChars((int)(heuristic(s))));
 
     tft.setCursor(10, 65);
     tft.setTextSize(2);
@@ -305,7 +305,6 @@ State takeStep(const State& s, int i, int j, bool redTurn) {
     }
     newS.exist[i][j] = true;
     newS.pos[i][j] = currentC;
-    heuristic(newS);
 
     return newS;
 }
