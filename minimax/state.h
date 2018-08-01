@@ -36,6 +36,7 @@ bool operator!= (const State& s1, const State& s2) {
 
 bool inBoard(int x, int y);
 int countResult(const State& s);
+void countResult(const State& s, int& r, int& b);
 int availablePlaces(const State& s, bool (&available)[8][8], bool redTurn);
 int heuristic(const State& s);
 bool isEnd(const State& s);
@@ -54,6 +55,22 @@ int countResult(const State& s) {
             result += (!s.exist[i][j]) ? 0 : (!s.pos[i][j]) ? 1 : -1;
 
     return result;
+}
+
+void countResult(const State& s, int& r, int& b) {
+    r = 0;
+    b = 0;
+    for (int i = 0; i < 8; ++i) {
+        for (int j = 0; j < 8; ++j) {
+            if (s.exist[i][j] == false)
+                continue;
+
+            if (s.pos[i][j])
+                ++b;
+            else
+                ++r;
+        }
+    }
 }
 
 int availablePlaces(const State& s, bool (&available)[8][8], bool redTurn) {
@@ -158,7 +175,6 @@ void printState(State& s, bool redTurn) {
 
         printf ("\n");
     }
-    printf ("heu: %i\n", heuristic(s));
 }
 
 State takeStep(const State& s, int i, int j, bool redTurn) {

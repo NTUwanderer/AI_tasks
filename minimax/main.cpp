@@ -6,6 +6,7 @@
 #include <vector>
 #include <algorithm>
 #include <iostream>
+#include <unistd.h>
 
 #include "state.h"
 #include "heu1.h"
@@ -98,6 +99,48 @@ int playerHeuristic(const State& s, bool firstPlayer) {
     }
 
     return heuristic(s);
+}
+
+string playerTeamname(bool firstPlayer) {
+    int player = (firstPlayer ? player1 : player2);
+
+    switch(player) {
+        case 1:
+            return teamName1;
+        case 2:
+            return teamName2;
+        case 3:
+            return teamName3;
+        case 4:
+            return teamName4;
+        case 5:
+            return teamName5;
+        case 6:
+            return teamName6;
+        case 7:
+            return teamName7;
+        case 8:
+            return teamName8;
+        case 9:
+            return teamName9;
+        case 10:
+            return teamName10;
+        default:
+            return "NULL team";
+    }
+
+    return "NULL team";
+}
+
+void printCompetitionStatus(const State& s) {
+    int r, b;
+    countResult(s, r, b);
+    printf ("Team:  ");
+    printf (RED "%s" NONE " vs " BLUE "%s\n" NONE, playerTeamname(true).c_str(), playerTeamname(false).c_str());
+    printf ("Heu:   ");
+    printf (RED "%i" NONE " vs " BLUE "%i\n" NONE, playerHeuristic(s, true), playerHeuristic(s, false));
+    printf ("Num of occupied: ");
+    printf (RED "%i" NONE " vs " BLUE "%i\n" NONE, r, b);
 }
 
 // return best heuristic value with a limited trace depth
@@ -212,43 +255,26 @@ int main() {
 
             // player1 first
             while (!isEnd(s)) {
+                printCompetitionStatus(s);
                 printState(s, redTurn);
 
                 if (availablePlaces(s, available, redTurn) != 0) {
                     int moveX, moveY;
                     minimax(s, moveX, moveY, redTurn, depth, redTurn);
                     s = takeStep(s, moveX, moveY, redTurn);
+
+                    usleep(1000000);
                 }
 
                 redTurn = !redTurn;
             }
             printf ("End State:\n");
+
+            printCompetitionStatus(s);
             printState(s, redTurn);
             result1 = countResult(s);
-            printf ("Winner: %s\n", (result1 > 0) ? "x (Black)" : (result1 < 0) ? "y (White)" : "break even");
-
-            // player2 first
-            s = initState;
-            swap(player1, player2);
-
-            while (!isEnd(s)) {
-                printState(s, redTurn);
-
-                if (availablePlaces(s, available, redTurn) != 0) {
-                    int moveX, moveY;
-                    minimax(s, moveX, moveY, redTurn, depth, redTurn);
-                    s = takeStep(s, moveX, moveY, redTurn);
-                }
-
-                redTurn = !redTurn;
-            }
-            printf ("End State:\n");
-            printState(s, redTurn);
-            result2 = countResult(s);
-            printf ("Winner: %s\n", (result2 > 0) ? "x (Black)" : (result2 < 0) ? "y (White)" : "break even");
+            printf ("Winner: %s, count: %i\n", (result1 > 0) ? "x (Black)" : (result1 < 0) ? "y (White)" : "break even", countResult(s));
         }
-
     }
-
 }
 
