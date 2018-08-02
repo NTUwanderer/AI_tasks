@@ -268,6 +268,7 @@ void gameSetup() {
 
 void resetGame() {
     do {
+        // TODO: change to randomStepState(10) or higher to have more difficult initState
         initState = randomStepState(5);
         // initState = randomState();
     } while (initState == goalState);
