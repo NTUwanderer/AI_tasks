@@ -380,8 +380,14 @@ void envMove() {
     int nMoves = availablePlaces(currentState, availables, redTurn);
     moveX = moveY = -1;
     deadline = millis() + maxPeriod;
-    minimax(currentState, moveX, moveY, redTurn, maxDepth);
+    double returnValue = minimax(currentState, moveX, moveY, redTurn, maxDepth);
     if ((moveX != -1 && reachDeadline(false) == false) || randomMove(currentState, moveX, moveY, nMoves, availables)) {
+        Serial.print ("moveX: ");
+        Serial.print (moveX);
+        Serial.print (", moveY: ");
+        Serial.print (moveY);
+        Serial.print (", return value: ");
+        Serial.println (returnValue);
         currentState = takeStep(currentState, moveX, moveY, redTurn);
         redTurn = !redTurn;
     } else {

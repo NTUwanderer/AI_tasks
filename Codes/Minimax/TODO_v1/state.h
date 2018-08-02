@@ -171,6 +171,8 @@ int availablePlaces(const State& s, bool (&available)[8][8], bool redTurn) {
 
 double heuristic(State& s) {
 
+    // TODO: uncomment next line to test your minimax/alpha-beta pruning
+    // return (double)countResult(s);
     double h = 0;
 
     // TODO: design your heuristic function

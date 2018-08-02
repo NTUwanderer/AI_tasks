@@ -382,6 +382,12 @@ void envMove() {
     deadline = millis() + maxPeriod;
     minimax(currentState, moveX, moveY, redTurn, maxDepth);
     if ((moveX != -1 && reachDeadline(false) == false) || randomMove(currentState, moveX, moveY, nMoves, availables)) {
+        Serial.print ("moveX: ");
+        Serial.print (moveX);
+        Serial.print (", moveY: ");
+        Serial.print (moveY);
+        Serial.print (", return value: ");
+        Serial.println (returnValue);
         currentState = takeStep(currentState, moveX, moveY, redTurn);
         redTurn = !redTurn;
     } else {
@@ -797,19 +803,18 @@ double minimax(const State& s, int& mX, int& mY, bool redTurn, int depth, int al
 
     yield();
 
-    // TODO: Design your efficient minimax function
-    /*
-        Functions you may use:
+    /* TODO: Design your efficient minimax function
+     * Functions you may use:
 
-        availablePlaces(state, availables, redTurn): Count available moves & store in availables
-        takeStep(state, i, j, redTurn): get state with step(i, j)
-        heuristic(state): self-defined heuristic of the state
+     * availablePlaces(state, availables, redTurn): Count available moves & store in availables
+     * takeStep(state, i, j, redTurn): get state with step(i, j)
+     * heuristic(state): self-defined heuristic of the state
 
-        Notes: 
-        If depth == 1, return heuristic(s) directly.
-        Take care of the situation that no available moves for the current redTurn: directly switch to !redTurn.
-        If the current redTurn has no available step, you can trace !redTurn without decrease depth.
-    */
+     * Notes: 
+     * If depth == 1, return heuristic(s) directly.
+     * Take care of the situation that no available moves for the current redTurn: directly switch to !redTurn.
+     * If the current redTurn has no available step, you can trace !redTurn without decrease depth.
+     */
 
     return bestHeu;
 }
