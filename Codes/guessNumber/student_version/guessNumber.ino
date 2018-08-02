@@ -33,7 +33,7 @@ Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
 #define YELLOW  0xFFE0
 #define WHITE   0xFFFF
 
-ButtonCoordinate startButton, giveupButton, reverseButton;
+ButtonCoordinate startButton, giveupButton, reverseButton, reguessButton;
 ButtonCoordinate numButtons[10];
 
 enum GameState{startMode, gameMode, reverseMode, endMode};
@@ -85,24 +85,17 @@ void resetRevGuess() {
 void resetRevData() {
     Serial.print("resetRevData()");
     revData.remain = 10000;
+
     // remove all invalid number
-    for(int i = 0; i < 10000; ++i) {
-        revData.possible[i] = 1;
-        bool hist[10] = {0};
-        int target = i;
-        for(int j = 0; j < 4; ++j) {
-            int digit = target % 10;
-            if(hist[digit]) {
-                revData.possible[i] = 0;
-                --revData.remain;
-                break;
-            }
-            hist[digit] = 1;
-            target /= 10;
-        }
-    }
+    // also check that there are 5040 remains 
+
+    /* TODO lecture5
+     *  your code here
+     */
+
     Serial.print("remain: ");
     Serial.print(revData.remain);
+    Serial.print("\n");
     resetRevGuess();
     revData.count = 0;
 }
@@ -218,7 +211,7 @@ void loop() {
 }
 
 void execGame() {
-    Serial.print("execGame");
+    Serial.print("execGame\n");
     while(gameState == gameMode) {
         drawGameScreen();
         playerMove();
@@ -306,7 +299,7 @@ void playerMove() {
             for(int i = 0; i < 10; ++i) {
                 if(numButtons[i].pressed(p.x, p.y)) {
                     if(!gameData.histG[i]) {
-                        /* TODO lecture 4
+                        /* TODO lecture4
                          *  your code here
                          */
                     }
@@ -343,7 +336,8 @@ void checkGuess() {
 // Reverse mode: AI guess your number
 
 void revGameSetup() {
-    giveupButton = ButtonCoordinate(192,0,128,56);
+    giveupButton = ButtonCoordinate(192,0,128,37);
+    reguessButton = ButtonCoordinate(160,37,128,37);
     for (int i = 0; i < 10; ++i) {
         numButtons[i] = ButtonCoordinate((i % 5) * 64, 112 + (i / 5) * 64, 64, 64);
     }
@@ -353,7 +347,7 @@ void revGameSetup() {
 }
 
 void execRevGame() {
-    Serial.print("execRevGame");
+    Serial.print("execRevGame\n");
     while(gameState == reverseMode) {
         AIMove();
         drawRevScreen();
@@ -391,6 +385,8 @@ void drawRevScreen() {
         tft.print("Game Over!");
     }
     else {
+        tft.setCursor(160 + 8, 37 + 8);
+        tft.print("reGuess");
         tft.setCursor(8, 37 + 8);
         tft.print("A: ");
         if(revData.A >= 0) tft.print(revData.A);
@@ -410,7 +406,7 @@ void AIMove() {
     /* TODO lecture5
      *  your code here
      */
-     
+
     ++revData.count;
 }
 
@@ -433,17 +429,17 @@ void revPlayerMove() {
                 gameState = endMode;
                 break;
             }
+            if(reguessButton.pressed(p.x, p.y)) {
+                AIMove();
+                --revData.count;
+                drawRevScreen();
+            }
             for(int i = 0; i < 5; ++i) {
                 if(numButtons[i].pressed(p.x, p.y)) {
                     if(count == 0) revData.A = i;
                     else if(count == 1) revData.B = i;
                     ++count;
                     drawRevScreen();
-                    Serial.print("count = ");
-                    Serial.print(count);
-                    Serial.print("\tguess = ");
-                    Serial.print(gameData.guess);
-                    Serial.print("\n");
                 }
             }
             if(revData.A == 4) {
@@ -465,11 +461,24 @@ void AIFilter() {
     /* TODO lecture5
      *  your code here
      */
-     
+
+    Serial.print("remain: ");
+    Serial.print(revData.remain);
+    Serial.print("\n");
     if(revData.remain == 0) {
         drawRevScreen();
         gameState = endMode;
         delay(2000);
+    }
+    else {
+        for(int i = 0; i < 10000; ++i) {
+            if(revData.possible[i]) {
+                Serial.print("first possible: ");
+                Serial.print(i);
+                Serial.print("\n");
+                break;
+            }
+        }
     }
 }
 
