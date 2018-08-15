@@ -163,7 +163,7 @@ int minimax(const State& s, int& mX, int& mY, bool redTurn, int depth, bool firs
             int h;
             State newS = takeStep(s, i, j, redTurn);
             if (depth <= 1 || isEnd(newS)) {
-                h = heuristic(newS);
+                h = playerHeuristic(newS, firstPlayer);
             } else {
                 int tempMX = -1, tempMY = -1;
                 h = minimax(newS, tempMX, tempMY, !redTurn, depth - 1, firstPlayer, alpha, beta);
@@ -211,7 +211,7 @@ int main() {
     bool redTurn = (mode != 2);
 
     bool available[8][8];
-    int depth = 5;
+    const int depth = 5;
 
     char c;
 
@@ -246,6 +246,7 @@ int main() {
     } else {
         while (true) {
             int result1, result2;
+            redTurn = true;
             s = initState;
             do {
                 printf ("Give two competitors: ");
@@ -263,7 +264,7 @@ int main() {
                     minimax(s, moveX, moveY, redTurn, depth, redTurn);
                     s = takeStep(s, moveX, moveY, redTurn);
 
-                    usleep(1000000);
+                    // usleep(1000000);
                 }
 
                 redTurn = !redTurn;
@@ -273,7 +274,7 @@ int main() {
             printCompetitionStatus(s);
             printState(s, redTurn);
             result1 = countResult(s);
-            printf ("Winner: %s, count: %i\n", (result1 > 0) ? "x (Black)" : (result1 < 0) ? "y (White)" : "break even", countResult(s));
+            printf ("Winner: %s, count: %i\n", (result1 > 0) ? playerTeamname(true).c_str() : (result1 < 0) ? playerTeamname(false).c_str() : "break even", countResult(s));
         }
     }
 }
